@@ -8,7 +8,7 @@
 #include <exception>
 #include <limits>
 #include <cstdint>
-#include <ostream>
+#include <iosfwd>
 #include <utility>
 
 #include <mpfr.h>
@@ -406,25 +406,25 @@ inline void write_to_ostream(
     mpfr_cref_t x_,
     char* stack_buffer,
     size_t stack_bufsize) {
-  using F = std::ios_base;
+  using ostr = std::basic_ostream<CharT, Traits>;
 
   char format[128] = {};
   std::size_t pos = 0;
   format[pos++] = '%';
   format[pos++] = '.';
 
-  bool hf = _::has_flag(out, F::scientific) and _::has_flag(out, F::fixed);
+  bool hf = _::has_flag(out, ostr::scientific) and _::has_flag(out, ostr::fixed);
   long precision = hf ? (mpfr_get_prec(&x_.m) / 4) : static_cast<long>(out.precision());
   std::snprintf(format + pos, sizeof(format) - pos, "%ld", precision);
   pos = std::strlen(format);
   format[pos++] = 'R';
 
-  bool u = has_flag(out, F::uppercase);
+  bool u = has_flag(out, ostr::uppercase);
   if (hf) {
     format[pos++] = u ? 'A' : 'a';
-  } else if (_::has_flag(out, F::scientific)) {
+  } else if (_::has_flag(out, ostr::scientific)) {
     format[pos++] = u ? 'E' : 'e';
-  } else if (_::has_flag(out, F::fixed)) {
+  } else if (_::has_flag(out, ostr::fixed)) {
     format[pos++] = u ? 'F' : 'f';
   } else {
     format[pos++] = u ? 'G' : 'g';
@@ -444,7 +444,7 @@ inline void write_to_ostream(
   char* ptr = use_heap ? heap_buffer.p : stack_buffer;
 
   mpfr_snprintf(ptr, size_needed, format, &x_.m);
-  if (not hf and _::has_flag(out, F::showpoint) and out.precision() > 0) {
+  if (not hf and _::has_flag(out, ostr::showpoint) and out.precision() > 0) {
     char* dot_ptr = std::strchr(ptr, '.');
     if (dot_ptr == nullptr) {
       zero_padding = 1 + static_cast<std::size_t>(out.precision()) - size_needed;
@@ -453,24 +453,24 @@ inline void write_to_ostream(
 
   std::size_t n_padding = 0;
   if (static_cast<std::size_t>(out.width()) >=
-      size_needed - 1 + ((signbit or _::has_flag(out, F::showpos)) ? 1 : 0)) {
+      size_needed - 1 + ((signbit or _::has_flag(out, ostr::showpos)) ? 1 : 0)) {
 
     n_padding = static_cast<std::size_t>(out.width()) - size_needed + 1 -
-                ((signbit or _::has_flag(out, F::showpos)) ? 1 : 0) - zero_padding;
+                ((signbit or _::has_flag(out, ostr::showpos)) ? 1 : 0) - zero_padding;
   }
 
   out.width(0);
-  if (_::has_flag(out, F::right)) {
+  if (_::has_flag(out, ostr::right)) {
     _::print_n(out, out.fill(), n_padding);
   }
 
   if (signbit) {
     out.put(out.widen('-'));
-  } else if (_::has_flag(out, F::showpos)) {
+  } else if (_::has_flag(out, ostr::showpos)) {
     out.put(out.widen('+'));
   }
 
-  if (_::has_flag(out, F::internal)) {
+  if (_::has_flag(out, ostr::internal)) {
     _::print_n(out, out.fill(), n_padding);
   }
 
@@ -481,7 +481,7 @@ inline void write_to_ostream(
     _::print_n(out, '0', zero_padding - 1);
   }
 
-  if (_::has_flag(out, F::left)) {
+  if (_::has_flag(out, ostr::left)) {
     _::print_n(out, out.fill(), n_padding);
   }
 }
