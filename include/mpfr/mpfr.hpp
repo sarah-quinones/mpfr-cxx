@@ -358,6 +358,11 @@ CXX_MPFR_UNARY_OP(log2);
 CXX_MPFR_UNARY_OP(log10);
 CXX_MPFR_UNARY_OP(log1p);
 
+template <parameter_type... Param_Types, typename... Ts> void apply_mpfr_fn(Ts&&... args) {
+  _::apply_mpfr_fn_2_impl<Param_Types...>(
+      std::make_index_sequence<sizeof...(Ts) - 1>{}, static_cast<Ts&&>(args)...);
+}
+
 } // namespace mpfr
 
 // stl numeric_limits
