@@ -5,6 +5,7 @@ files = [
 ]
 
 with open("./mpfr.hpp", "w") as single_header:
+    single_header.write("#define CXX_MPFR_SINGLE_HEADER")
     for f in files:
         with open(f) as header:
             single_header.write(header.read())
