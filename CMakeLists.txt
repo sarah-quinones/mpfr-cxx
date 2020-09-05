@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 project(mpfr-cxx CXX)
 
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+
+if(ENABLE_DOCS_ONLY)
+  add_subdirectory("docs")
+  return()
+endif()
+
 include(cmake/standard_project_settings.cmake)
 
 # Link this 'library' to set the c++ standard / compile-time options requested
@@ -11,39 +18,20 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Link this 'library' to use the warnings specified in compiler_warnings.cmake
 add_library(project_warnings INTERFACE)
 
-# standard compiler warnings
 include(cmake/compiler_warnings.cmake)
 set_project_warnings(project_warnings)
 
-# sanitizer options if supported by compiler
 include(cmake/sanitizers.cmake)
 enable_sanitizers(project_options)
 
-# enable doxygen
-include(cmake/doxygen.cmake)
-enable_doxygen()
-
-# allow for static analysis options
 include(cmake/static_analyzers.cmake)
-
-option(ENABLE_PCH "Enable Precompiled Headers" OFF)
-if(ENABLE_PCH)
-  target_precompile_headers(
-    project_options
-    INTERFACE
-    <vector>
-    <string>
-    <map>
-    <utility>
-  )
-endif()
 
 # Conan dependencies
 set(CONAN_REQUIRES
     # Boost Software License 1.0
-    boost/1.73.0
+    boost/1.74.0
     # MIT License
-    fmt/6.2.1
+    fmt/7.0.3
     backward-cpp/1.5
     # LGPL v3.0
     mpfr/4.0.2
@@ -74,6 +62,10 @@ if(ENABLE_TESTING)
   add_subdirectory(test)
 endif()
 
-if(ENABLE_TESTING)
+if(ENABLE_BENCHMARK)
   add_subdirectory(benchmark)
+endif()
+
+if(ENABLE_DOCS)
+  add_subdirectory ("docs")
 endif()

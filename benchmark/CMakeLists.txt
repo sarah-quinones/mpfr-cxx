@@ -1,6 +1,3 @@
-# automatically enable catch2 to generate ctest targets
-include(../cmake/doctest.cmake)
-
 find_package(Boost REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 

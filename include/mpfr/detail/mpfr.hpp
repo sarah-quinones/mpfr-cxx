@@ -1,24 +1,8 @@
 #ifndef MPFR_HPP_NZTOL31N
 #define MPFR_HPP_NZTOL31N
 
-#include <climits>
-#include <cmath>
-#include <cstdio>
-#include <cstring>
-#include <exception>
-#include <limits>
-#include <cstdint>
-#include <iosfwd>
-#include <utility>
-
-#include <mpfr.h>
-
 #ifndef CXX_MPFR_SINGLE_HEADER
-#include "mpfr/detail/hedley.h"
-#endif
-
-#ifndef CXX_MPFR_DEBUG
-#define CXX_MPFR_DEBUG 0
+#include "mpfr/enums.hpp"
 #endif
 
 #if CXX_MPFR_DEBUG == 1
@@ -34,12 +18,6 @@
 #endif
 
 namespace mpfr {
-enum struct precision_t : mpfr_prec_t {};
-enum parameter_type {
-  in,
-  out,
-  inout,
-};
 
 template <precision_t> struct mp_float_t;
 
@@ -161,10 +139,6 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
          - zero_bits;
 }
 
-struct mpfr_pretend_t {
-  mpfr_exp_t _mpfr_exp;
-};
-
 struct mpfr_cref_t {
   typename remove_pointer<mpfr_ptr>::type m;
 
@@ -201,20 +175,25 @@ struct mpfr_raii_setter_t /* NOLINT */ {
         precision,
         mantissa);
 
-#if CXX_MPFR_DEBUG == 1
     // poison value
     MPFR_SIGN(&m) = std::numeric_limits<mpfr_sign_t>::max();
     mpfr_custom_get_exp(&m) = std::numeric_limits<mpfr_exp_t>::max();
-#endif
   }
-#if CXX_MPFR_DEBUG == 1
   mpfr_raii_setter_t(mpfr_raii_setter_t const&) = delete;
   mpfr_raii_setter_t(mpfr_raii_setter_t&&) = delete;
   auto operator=(mpfr_raii_setter_t const&) -> mpfr_raii_setter_t& = delete;
   auto operator=(mpfr_raii_setter_t &&) -> mpfr_raii_setter_t& = delete;
-#endif
 
   ~mpfr_raii_setter_t() {
+    // if exponent is poisoned, do nothing
+    if (mpfr_custom_get_exp(&m) == std::numeric_limits<mpfr_exp_t>::max()) {
+      return;
+    }
+    // exponent is set
+    // if sign is poisoned, set to positive
+    if (MPFR_SIGN(&m) == std::numeric_limits<mpfr_sign_t>::max()) {
+      MPFR_SIGN(&m) = 1;
+    }
     CXX_MPFR_ASSERT(MPFR_SIGN(&m) != std::numeric_limits<mpfr_sign_t>::max());
     CXX_MPFR_ASSERT(mpfr_custom_get_exp(&m) != std::numeric_limits<mpfr_exp_t>::max());
 
@@ -227,7 +206,7 @@ struct mpfr_raii_setter_t /* NOLINT */ {
       std::memset(
           mpfr_custom_get_significand(&m), 0, sizeof(mp_limb_t) * prec_to_nlimb(mpfr_get_prec(&m)));
       *m_actual_prec_sign_ptr = prec_negate_if(0, mpfr_signbit(&m));
-      *m_exponent_ptr = mpfr_zero_p(&m) ? 0 : (mpfr_inf_p(&m) ? __MPFR_EXP_INF : __MPFR_EXP_NAN);
+      *m_exponent_ptr = mpfr_zero_p(&m) ? 0 : mpfr_get_exp(&m);
     }
   }
 
@@ -260,22 +239,39 @@ struct mpfr_raii_inout_t /* NOLINT */ {
         m_exponent_ptr{exponent_ptr},
         m_actual_prec_sign_ptr{actual_prec_sign_ptr} {}
 
-#if CXX_MPFR_DEBUG == 1
   mpfr_raii_inout_t(mpfr_raii_inout_t const&) = delete;
   mpfr_raii_inout_t(mpfr_raii_inout_t&&) = delete;
   auto operator=(mpfr_raii_inout_t const&) -> mpfr_raii_inout_t& = delete;
   auto operator=(mpfr_raii_inout_t &&) -> mpfr_raii_inout_t& = delete;
-#endif
 
   ~mpfr_raii_inout_t() {
+    mpfr_exp_t new_exponent{};
+    mpfr_prec_t new_actual_prec_sign{};
     if (mpfr_regular_p(&m)) {
-      *m_exponent_ptr = mpfr_custom_get_exp(&m);
-      *m_actual_prec_sign_ptr = prec_negate_if(compute_actual_prec(&m), mpfr_signbit(&m));
+      new_exponent = mpfr_custom_get_exp(&m);
+      new_actual_prec_sign = prec_negate_if(compute_actual_prec(&m), mpfr_signbit(&m));
     } else {
-      std::memset(
-          mpfr_custom_get_significand(&m), 0, sizeof(mp_limb_t) * prec_to_nlimb(mpfr_get_prec(&m)));
-      *m_actual_prec_sign_ptr = prec_negate_if(0, mpfr_signbit(&m));
-      *m_exponent_ptr = mpfr_zero_p(&m) ? 0 : (mpfr_inf_p(&m) ? __MPFR_EXP_INF : __MPFR_EXP_NAN);
+      new_actual_prec_sign = prec_negate_if(0, mpfr_signbit(&m));
+      new_exponent = mpfr_zero_p(&m) ? 0 : mpfr_get_exp(&m);
+      typename remove_pointer<mpfr_ptr>::type original{
+          mpfr_get_prec(&m),
+          (*m_actual_prec_sign_ptr) < 0 ? -1 : 1,
+          (*m_exponent_ptr),
+          nullptr,
+      };
+      if (mpfr_regular_p(&original)) {
+        std::memset(
+            mpfr_custom_get_significand(&m),
+            0,
+            sizeof(mp_limb_t) * prec_to_nlimb(mpfr_get_prec(&m)));
+      }
+    }
+
+    if (*m_exponent_ptr != new_exponent) {
+      *m_exponent_ptr = new_exponent;
+    }
+    if (*m_actual_prec_sign_ptr != new_actual_prec_sign) {
+      *m_actual_prec_sign_ptr = new_actual_prec_sign;
     }
   }
 
@@ -284,34 +280,25 @@ struct mpfr_raii_inout_t /* NOLINT */ {
   void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
-inline void set_zero(mpfr_raii_setter_t& out, bool signbit) {
-  mpfr_custom_init_set(
-      &out.m,
-      signbit ? -MPFR_ZERO_KIND : MPFR_ZERO_KIND,
-      0,
-      mpfr_get_prec(&out.m),
-      static_cast<mp_limb_t*>(mpfr_custom_get_significand(&out.m)));
-  out.m_actual_precision = 0;
-}
+[[nodiscard]] HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2(
+    mpfr_exp_t* a_exp,
+    mpfr_exp_t* a_prec_sign,
+    mpfr_exp_t b_exponent,
+    mpfr_exp_t b_actual_prec_sign,
+    bool div) -> bool {
+  typename _::remove_pointer<mpfr_ptr>::type ea_{0, 0, *a_exp, nullptr};
 
-inline void set_copy(mpfr_raii_setter_t& out, mpfr_cref_t a) {
-  mpfr_set(&out.m, &a.m, MPFR_RNDN);
+  mpfr_prec_t eb{div ? (1 - b_exponent) : b_exponent - 1};
+  if (HEDLEY_LIKELY(
+          mpfr_regular_p(&ea_) and                //
+          (*a_exp + eb - 1) < mpfr_get_emax() and //
+          (*a_exp + eb - 1) > mpfr_get_emin())) {
 
-  mpfr_prec_t& op = out.m_actual_precision;
-  mpfr_prec_t ap = mpfr_get_prec(&a.m);
-  op = op >= ap ? ap : op;
-}
-
-inline void set_mul_pow2(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
-  CXX_MPFR_ASSERT(mpfr_get_prec(&b.m) == 1);
-  CXX_MPFR_ASSERT(mpfr_zero_p(&a.m) == 0);
-
-  mpfr_mul_2si(&out.m, &a.m, b.pow2_exponent(), MPFR_RNDN);
-  MPFR_SIGN(&out.m) *= mpfr_signbit(&b.m) ? -1 : 1;
-
-  mpfr_prec_t& op = out.m_actual_precision;
-  mpfr_prec_t ap = mpfr_get_prec(&a.m);
-  op = op >= ap ? ap : op;
+    *a_prec_sign = (b_actual_prec_sign < 0) ? -*a_prec_sign : *a_prec_sign;
+    *a_exp += eb;
+    return true;
+  }
+  return false;
 }
 
 inline void set_d(mpfr_raii_setter_t& out, double a) {
@@ -341,35 +328,17 @@ inline void set_sub(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
 }
 
 inline void set_mul(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
-
-  if (mpfr_regular_p(&a.m) != 0 and mpfr_regular_p(&b.m) != 0) {
-    if (mpfr_get_prec(&b.m) == 1) {
-      set_mul_pow2(out, a, b);
-      return;
-    }
-    if (mpfr_get_prec(&a.m) == 1) {
-      set_mul_pow2(out, b, a);
-      return;
-    }
-    if ((mpfr_custom_get_significand(&a.m) == mpfr_custom_get_significand(&b.m)) and
-        (mpfr_custom_get_exp(&a.m) == mpfr_custom_get_exp(&b.m)) and
-        (mpfr_signbit(&a.m) == mpfr_signbit(&b.m)) and
-        (mpfr_get_prec(&a.m) == mpfr_get_prec(&b.m))) {
-      mpfr_sqr(&out.m, &a.m, MPFR_RNDN);
-      return;
-    }
+  if ((mpfr_custom_get_significand(&a.m) == mpfr_custom_get_significand(&b.m)) and
+      (mpfr_custom_get_exp(&a.m) == mpfr_custom_get_exp(&b.m)) and
+      (mpfr_signbit(&a.m) == mpfr_signbit(&b.m)) and (mpfr_get_prec(&a.m) == mpfr_get_prec(&b.m))) {
+    mpfr_sqr(&out.m, &a.m, MPFR_RNDN);
+    return;
   }
   mpfr_mul(&out.m, &a.m, &b.m, MPFR_RNDN);
 }
 
 inline void set_div(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
-  if ((mpfr_regular_p(&a.m) and mpfr_regular_p(&b.m)) and mpfr_get_prec(&b.m) == 1) {
-    // invert b
-    b.set_pow2_exponent(-b.pow2_exponent());
-    set_mul_pow2(out, a, b);
-  } else {
-    mpfr_div(&out.m, &a.m, &b.m, MPFR_RNDN);
-  }
+  mpfr_div(&out.m, &a.m, &b.m, MPFR_RNDN);
 }
 
 struct heap_str_t /* NOLINT(cppcoreguidelines-special-member-functions) */ {
@@ -487,6 +456,7 @@ inline void write_to_ostream(
 }
 
 struct impl_access {
+
   template <precision_t P>
   [[nodiscard]] static auto mantissa_mut(mp_float_t<P>& x)
       -> mp_limb_t (&)[prec_to_nlimb(static_cast<std::uint64_t>(P))] {
@@ -547,6 +517,16 @@ struct impl_access {
         &x.m_actual_prec_sign,
     };
   }
+
+  template <precision_t P>
+  [[nodiscard]] static auto mpfr_inout_setter(mp_float_t<P>& x) -> mpfr_raii_inout_t {
+    return {
+        mp_float_t<P>::precision,
+        static_cast<mp_limb_t*>(x.m_mantissa),
+        &x.m_exponent,
+        &x.m_actual_prec_sign,
+    };
+  }
 };
 
 template <precision_t P>
@@ -591,7 +571,7 @@ template <> struct into_mpfr<out> {
   static auto get_pointer(mpfr_raii_setter_t&& p) -> mpfr_ptr { return &p.m; }
   template <precision_t P> static auto get_mpfr(mp_float_t<P>& x) -> mpfr_raii_setter_t {
     return {
-        mp_float_t<P>::precision,
+        static_cast<mpfr_prec_t>(P),
         static_cast<mp_limb_t*>(impl_access::mantissa_mut(x)),
         &impl_access::exp_mut(x),
         &impl_access::actual_prec_sign_mut(x),
@@ -603,7 +583,7 @@ template <> struct into_mpfr<inout> {
   static auto get_pointer(mpfr_raii_inout_t&& p) -> mpfr_ptr { return &p.m; }
   template <precision_t P> static auto get_mpfr(mp_float_t<P>& x) -> mpfr_raii_inout_t {
     return {
-        mp_float_t<P>::precision,
+        static_cast<mpfr_prec_t>(P),
         static_cast<mp_limb_t*>(impl_access::mantissa_mut(x)),
         &impl_access::exp_mut(x),
         &impl_access::actual_prec_sign_mut(x),
@@ -611,71 +591,18 @@ template <> struct into_mpfr<inout> {
   }
 };
 
-template <typename T, size_t I> struct tuple_leaf { T m; };
-
-struct getter {
-  template <size_t I, typename T> static auto leaf_get(tuple_leaf<T, I>& a) -> T {
-    return static_cast<T>(a.m);
-  }
-};
-
-template <size_t I, typename T>
-auto get(T& tup) noexcept -> decltype(getter::leaf_get<I>(tup._m_impl)) {
-  return getter::leaf_get<I>(tup._m_impl);
-}
-
-template <typename... Ts> struct ref_tuple {
-  template <typename T> struct indexed_tuple;
-  template <size_t... Is> struct indexed_tuple<std::index_sequence<Is...>> : tuple_leaf<Ts, Is>... {
-    indexed_tuple(Ts... args) // NOLINT(hicpp-explicit-conversions)
-        : tuple_leaf<Ts, Is>{static_cast<Ts>(args)}... {}
-  };
-
-  indexed_tuple<std::make_index_sequence<sizeof...(Ts)>> _m_impl;
-};
-
-template <parameter_type... Param_Types, typename Fn, typename... Ts>
-void apply_mpfr_fn2(Fn&& fn, Ts&... args) {
-  static_cast<Fn&&>(fn)(
-      _::into_mpfr<Param_Types>::get_pointer(_::into_mpfr<Param_Types>::get_mpfr(args))...);
-}
-
-template <parameter_type... Param_Types, size_t... Is, typename... Ts>
-void apply_mpfr_fn_2_impl(std::index_sequence<Is...>, Ts&&... args) {
-  using types = _::ref_tuple<Ts&&...>;
-  auto refs = types{{static_cast<Ts&&>(args)...}};
-  apply_mpfr_fn2<Param_Types...>(_::get<sizeof...(Is)>(refs), _::get<Is>(refs)...);
-}
-
 } // namespace _
 
-struct digits2 {
-private:
-  uint64_t m_value;
+constexpr digits2::digits2(precision_t prec) noexcept : m_value{static_cast<std::uint64_t>(prec)} {}
+constexpr digits2::operator precision_t() const noexcept {
+  return static_cast<precision_t>(m_value);
+}
 
-public:
-  constexpr explicit digits2(uint64_t value) noexcept : m_value{value} {};
-  constexpr explicit digits2(precision_t value_d2) noexcept
-      : m_value{(static_cast<uint64_t>(value_d2))} {};
-  constexpr operator // NOLINT(hicpp-explicit-conversions)
-      precision_t() const {
-    return static_cast<precision_t>(m_value);
-  }
-};
-
-struct digits10 {
-private:
-  uint64_t m_value;
-
-public:
-  constexpr explicit digits10(uint64_t value) noexcept : m_value{value} {};
-  constexpr explicit digits10(precision_t value_d2) noexcept
-      : m_value{_::digits2_to_10(static_cast<uint64_t>(value_d2) + 1)} {};
-  constexpr operator // NOLINT(hicpp-explicit-conversions)
-      precision_t() const {
-    return static_cast<precision_t>(_::digits10_to_2(m_value) + 1);
-  }
-};
+constexpr digits10::digits10(precision_t prec) noexcept
+    : m_value{_::digits2_to_10(static_cast<std::uint64_t>(prec))} {}
+constexpr digits10::operator precision_t() const noexcept {
+  return static_cast<precision_t>(_::digits10_to_2(m_value));
+}
 
 } // namespace mpfr
 

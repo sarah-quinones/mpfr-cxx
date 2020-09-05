@@ -1,5 +1,3 @@
-// c++ -std=c++17 -O3 -march=haswell -Iinclude
-
 #define CXX_MPFR_DEBUG 0
 #include "mpfr/mpfr.hpp"
 
