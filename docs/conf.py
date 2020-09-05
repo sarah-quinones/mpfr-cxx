@@ -8,7 +8,7 @@ if read_the_docs_build:
         'make doxygen-docs',
         shell=True)
     xmldir = 'build/docs/xml'
-    breathe_projects["MPFR CXX"] = 'build/docs/xml'
+    breathe_projects = {"MPFR CXX": 'build/docs/xml'}
 
 project = "MPFR CXX"
 author = "kitegi"
