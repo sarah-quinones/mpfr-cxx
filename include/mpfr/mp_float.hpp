@@ -1,5 +1,5 @@
-#ifndef MPFR_HPP_IKTJCQIU
-#define MPFR_HPP_IKTJCQIU
+#ifndef MP_FLOAT_HPP_KC35IAEF
+#define MP_FLOAT_HPP_KC35IAEF
 
 #ifndef CXX_MPFR_SINGLE_HEADER
 #include "mpfr/detail/mpfr.hpp"
@@ -333,4 +333,4 @@ private:
 };
 } // namespace std
 
-#endif /* end of include guard MPFR_HPP_IKTJCQIU */
+#endif /* end of include guard MP_FLOAT_HPP_KC35IAEF */
