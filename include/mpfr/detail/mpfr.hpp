@@ -60,7 +60,10 @@ constexpr auto sqrt(uint64_t n) -> uint64_t { return inverse(n, _sqr); }
 constexpr auto digits2_to_10(uint64_t n) -> uint64_t { return inverse(n, digits10_to_2); }
 
 constexpr auto prec_to_nlimb(mpfr_prec_t prec) -> uint64_t {
-  return round_up_to_multiple(mpfr_custom_get_size(prec), sizeof(mp_limb_t)) / sizeof(mp_limb_t);
+  return round_up_to_multiple(
+             static_cast<uint64_t>(mpfr_custom_get_size(static_cast<uint64_t>(prec))),
+             sizeof(mp_limb_t)) /
+         sizeof(mp_limb_t);
 }
 
 template <typename T> struct remove_pointer;
@@ -98,10 +101,11 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
   size_t head = size / limb_pack_size * limb_pack_size;
   size_t end = size;
 
+  constexpr mpfr_prec_t bits_limb = sizeof(mp_limb_t) * CHAR_BIT;
   size_t i = 0;
   for (; i < head; i += limb_pack_size) {
     if (is_zero_pack(xp + i)) {
-      zero_bits += sizeof(zero_pack) * CHAR_BIT;
+      zero_bits += static_cast<mpfr_prec_t>(limb_pack_size) * bits_limb;
     } else {
       end = i + limb_pack_size;
       break;
@@ -110,7 +114,7 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
 
   for (; i < end; ++i) {
     if (xp[i] == 0) {
-      zero_bits += sizeof(mp_limb_t) * CHAR_BIT;
+      zero_bits += bits_limb;
     } else {
       break;
     }
@@ -119,7 +123,7 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
   // count trailing zeros
   mp_limb_t last_limb = xp[i];
   if (last_limb == 0) {
-    zero_bits += sizeof(mp_limb_t) * CHAR_BIT;
+    zero_bits += bits_limb;
   } else {
 #if HEDLEY_HAS_BUILTIN(__builtin_ctzll)
     zero_bits += __builtin_ctzll(last_limb);
@@ -130,8 +134,8 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
     }
 #endif
   }
-  return static_cast<mpfr_prec_t>(round_up_to_multiple(
-             static_cast<uint64_t>(mpfr_get_prec(x)), CHAR_BIT * sizeof(mp_limb_t))) //
+  return static_cast<mpfr_prec_t>(
+             round_up_to_multiple(static_cast<uint64_t>(mpfr_get_prec(x)), bits_limb)) //
          - zero_bits;
 }
 
