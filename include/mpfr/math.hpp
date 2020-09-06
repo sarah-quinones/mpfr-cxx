@@ -70,7 +70,8 @@ void sincos(mp_float_t<P> const& arg, mp_float_t<P>& sin_dest, mp_float_t<P>& co
 /// @param[out] sinh_dest Reference to the number that will be set to the hyperbolic sine value.
 /// @param[out] cosh_dest Reference to the number that will be set to the hyperbolic cosine value.
 template <precision_t P>
-void sinhcosh(mp_float_t<P> const& arg, mp_float_t<P>& sinh_dest, mp_float_t<P>& cosh_dest) noexcept {
+void sinhcosh(
+    mp_float_t<P> const& arg, mp_float_t<P>& sinh_dest, mp_float_t<P>& cosh_dest) noexcept {
   if (&sinh_dest == &cosh_dest) {
     _::crash_with_message("sinh_dest and cosh_dest cannot alias.");
   }
@@ -200,35 +201,35 @@ template <precision_t P> auto atanh(mp_float_t<P> const& arg) noexcept -> mp_flo
   return _::apply_unary_op(arg, mpfr_atanh);
 }
 
-/// \return Exponential of the argument with base \f$e := e^{arg}\f$.
+/// \return Exponential of the argument with base \f$e := e^{\text{arg}}\f$.
 template <precision_t P> auto exp(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_exp);
 }
-/// \return Exponential of the argument with base \f$2 := 2^{arg}\f$.
+/// \return Exponential of the argument with base \f$2 := 2^{\text{arg}}\f$.
 template <precision_t P> auto exp2(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_exp2);
 }
-/// \return Exponential of the argument with base \f$10 := 10^{arg}\f$.
+/// \return Exponential of the argument with base \f$10 := 10^{\text{arg}}\f$.
 template <precision_t P> auto exp10(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_exp10);
 }
-/// \return Exponential of the argument with base \f$e\f$ minus 1 \f$:= e^{arg} - 1\f$.
+/// \return Exponential of the argument with base \f$e\f$ minus 1 \f$:= e^{\text{arg}} - 1\f$.
 template <precision_t P> auto expm1(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_expm1);
 }
-/// \return Logarithm of the argument to base \f$e := \log_e(arg)\f$.
+/// \return Logarithm of the argument to base \f$e := \log_e(\text{arg})\f$.
 template <precision_t P> auto log(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_log);
 }
-/// \return Logarithm of the argument to base \f$2 := \log_2(arg)\f$.
+/// \return Logarithm of the argument to base \f$2 := \log_2(\text{arg})\f$.
 template <precision_t P> auto log2(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_log2);
 }
-/// \return Logarithm of the argument to base \f$10 := \log_10(arg)\f$.
+/// \return Logarithm of the argument to base \f$10 := \log_10(\text{arg})\f$.
 template <precision_t P> auto log10(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_log10);
 }
-/// \return Logarithm to base \f$e\f$ of \f$1 + arg := \log_e(1 + arg)\f$
+/// \return Logarithm to base \f$e\f$ of \f$1\f$ plus the argument \f$:=\log_e(1 + \text{arg})\f$.
 template <precision_t P> auto log1p(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_log1p);
 }
