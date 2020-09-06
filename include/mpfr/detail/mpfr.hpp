@@ -23,8 +23,8 @@ constexpr auto round_up_to_multiple(uint64_t n, uint64_t k) -> uint64_t {
 }
 
 constexpr auto digits10_to_2(uint64_t n) -> uint64_t {
-  return static_cast<uint64_t>(
-             3.321928094887362347870319429489390175864831393024580612054756395L *
+  return 3 * n + static_cast<uint64_t>(
+             0.321928094887362347870319429489390175864831393024580612054756395L *
              static_cast<long double>(n)) +
          1;
 }
