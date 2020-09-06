@@ -1,9 +1,7 @@
 #ifndef MP_FLOAT_HPP_KC35IAEF
 #define MP_FLOAT_HPP_KC35IAEF
 
-#ifndef CXX_MPFR_SINGLE_HEADER
 #include "mpfr/detail/mpfr.hpp"
-#endif
 
 namespace mpfr {
 

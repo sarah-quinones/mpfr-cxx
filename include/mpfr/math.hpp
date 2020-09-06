@@ -1,9 +1,7 @@
 #ifndef MATH_HPP_IED2CNIL
 #define MATH_HPP_IED2CNIL
 
-#ifndef CXX_MPFR_SINGLE_HEADER
 #include "mpfr/mp_float.hpp"
-#endif
 
 namespace mpfr {
 

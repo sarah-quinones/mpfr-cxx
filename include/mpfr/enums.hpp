@@ -17,9 +17,7 @@
 #define CXX_MPFR_DEBUG 0
 #endif
 
-#ifndef CXX_MPFR_SINGLE_HEADER
 #include "mpfr/detail/hedley.h"
-#endif
 
 namespace mpfr {
 

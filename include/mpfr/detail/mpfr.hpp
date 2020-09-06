@@ -1,9 +1,7 @@
 #ifndef MPFR_HPP_NZTOL31N
 #define MPFR_HPP_NZTOL31N
 
-#ifndef CXX_MPFR_SINGLE_HEADER
 #include "mpfr/enums.hpp"
-#endif
 
 #if CXX_MPFR_DEBUG == 1
 #define CXX_MPFR_STRINGIZE2(...) #__VA_ARGS__
