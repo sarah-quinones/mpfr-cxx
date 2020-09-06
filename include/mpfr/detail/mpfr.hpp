@@ -19,7 +19,7 @@ using std::size_t;
 using std::uint64_t;
 
 constexpr auto round_up_to_multiple(uint64_t n, uint64_t k) -> uint64_t {
-  return (n % k == 0) ? n : (n / k * k + k);
+  return (n + k - 1) / k * k;
 }
 
 constexpr auto digits10_to_2(uint64_t n) -> uint64_t {
