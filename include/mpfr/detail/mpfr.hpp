@@ -31,37 +31,46 @@ namespace _ {
 using std::size_t;
 using std::uint64_t;
 
-constexpr auto digits10_to_2(uint64_t n) -> uint64_t {
-  return static_cast<uint64_t>(
-      3.321928094887362347870319429489390175864831393024580612054756395L *
-      static_cast<long double>(n));
-}
-constexpr auto digits2_to_10(uint64_t n) -> uint64_t {
-  return static_cast<uint64_t>(
-      0.3010299956639811952137388947244930267681898814621085413104274611L *
-      static_cast<long double>(n));
-}
 constexpr auto round_up_to_multiple(uint64_t n, uint64_t k) -> uint64_t {
   return (n % k == 0) ? n : (n / k * k + k);
+}
+
+constexpr auto digits10_to_2(uint64_t n) -> uint64_t {
+  return static_cast<uint64_t>(
+             3.321928094887362347870319429489390175864831393024580612054756395L *
+             static_cast<long double>(n)) +
+         1;
 }
 
 constexpr auto midpoint(uint64_t a, uint64_t b) -> uint64_t {
   return (a / 2 + b / 2 + ((a % 2) * (b % 2)));
 }
 
-constexpr auto cmp_sqrt(uint64_t n, uint64_t target) -> int {
-  return ((n * n <= target) and ((n + 1) * (n + 1) > target)) ? 0 : (n * n > target) ? 1 : -1;
+constexpr auto cmp_inverse(uint64_t estimate, uint64_t target, uint64_t (*func)(uint64_t)) -> int {
+  return (func(estimate) >= target and func(estimate - 1) < target)
+             ? 0
+             : (func(estimate) > target ? 1 : -1);
 }
 
-// search for sqrt(n) in [low, high]
-constexpr auto approx_sqrt_binary_search(uint64_t n, uint64_t low, uint64_t high) -> uint64_t {
-  return cmp_sqrt(midpoint(low, high), n) == 0
+constexpr auto
+inverse_binary_search(uint64_t n, uint64_t low, uint64_t high, uint64_t (*func)(uint64_t))
+    -> uint64_t {
+  return cmp_inverse(midpoint(low, high), n, func) == 0
              ? midpoint(low, high)
-             : cmp_sqrt(midpoint(low, high), n) == 1
-                   ? approx_sqrt_binary_search(n, low, midpoint(low, high) - 1)
-                   : approx_sqrt_binary_search(n, midpoint(low, high) + 1, high);
+             : cmp_inverse(midpoint(low, high), n, func) == 1
+                   ? inverse_binary_search(n, low, midpoint(low, high) - 1, func)
+                   : inverse_binary_search(n, midpoint(low, high) + 1, high, func);
 }
-constexpr auto approx_sqrt(uint64_t n) -> uint64_t { return approx_sqrt_binary_search(n, 0, n); }
+
+/// func must be strictly increasing
+/// returns smallest m such that func(m) >= n
+constexpr auto inverse(uint64_t n, uint64_t (*func)(uint64_t)) {
+  return n == 0 ? 0 : inverse_binary_search(n, 0, n, func);
+}
+
+constexpr auto _sqr(uint64_t n) -> uint64_t { return n * n; }
+constexpr auto sqrt(uint64_t n) -> uint64_t { return inverse(n, _sqr); }
+constexpr auto digits2_to_10(uint64_t n) -> uint64_t { return inverse(n, digits10_to_2); }
 
 constexpr auto prec_to_nlimb(mpfr_prec_t prec) -> uint64_t {
   return round_up_to_multiple(mpfr_custom_get_size(prec), sizeof(mp_limb_t)) / sizeof(mp_limb_t);
