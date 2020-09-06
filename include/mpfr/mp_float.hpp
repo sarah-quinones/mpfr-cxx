@@ -2,6 +2,7 @@
 #define MP_FLOAT_HPP_KC35IAEF
 
 #include "mpfr/detail/mpfr.hpp"
+#include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {
 
@@ -330,5 +331,6 @@ private:
   }
 };
 } // namespace std
+#include "mpfr/detail/epilogue.hpp"
 
 #endif /* end of include guard MP_FLOAT_HPP_KC35IAEF */

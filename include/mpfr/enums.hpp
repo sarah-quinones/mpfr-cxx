@@ -13,11 +13,8 @@
 
 #include <mpfr.h>
 
-#ifndef CXX_MPFR_DEBUG
-#define CXX_MPFR_DEBUG 0
-#endif
-
 #include "mpfr/detail/hedley.h"
+#include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {
 
@@ -70,5 +67,7 @@ public:
       precision_t() const noexcept;
 };
 } // namespace mpfr
+
+#include "mpfr/detail/epilogue.hpp"
 
 #endif /* end of include guard ENUMS_HPP_4PXFRLJ0 */

@@ -2,6 +2,7 @@
 #define MATH_HPP_IED2CNIL
 
 #include "mpfr/mp_float.hpp"
+#include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {
 
@@ -233,5 +234,7 @@ template <precision_t P> auto log1p(mp_float_t<P> const& arg) noexcept -> mp_flo
 }
 
 } // namespace mpfr
+
+#include "mpfr/detail/epilogue.hpp"
 
 #endif /* end of include guard MATH_HPP_IED2CNIL */

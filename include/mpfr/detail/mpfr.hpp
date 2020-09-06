@@ -2,6 +2,7 @@
 #define MPFR_HPP_NZTOL31N
 
 #include "mpfr/enums.hpp"
+#include "mpfr/detail/prologue.hpp"
 
 #if CXX_MPFR_DEBUG == 1
 #define CXX_MPFR_STRINGIZE2(...) #__VA_ARGS__
@@ -612,5 +613,7 @@ constexpr digits10::operator precision_t() const noexcept {
 }
 
 } // namespace mpfr
+
+#include "mpfr/detail/epilogue.hpp"
 
 #endif /* end of include guard MPFR_HPP_NZTOL31N */
