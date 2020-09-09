@@ -15,19 +15,19 @@ template <precision_t P> auto signbit(mp_float_t<P> const& arg) noexcept -> bool
 /// \return `true` if the argument is infinite, `false` otherwise.
 template <precision_t P> auto isinf(mp_float_t<P> const& arg) noexcept -> bool {
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
-  return mpfr_inf_p(&x_.m);
+  return mpfr_inf_p(&x_.m) != 0;
 }
 
 /// \return `true` if the argument is finite, `false` otherwise.
 template <precision_t P> auto isfinite(mp_float_t<P> const& arg) noexcept -> bool {
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
-  return mpfr_number_p(&x_.m);
+  return mpfr_number_p(&x_.m) != 0;
 }
 
 /// \return `true` if the argument is a NaN, `false`, otherwise.
 template <precision_t P> auto isnan(mp_float_t<P> const& arg) noexcept -> bool {
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
-  return mpfr_nan_p(&x_.m);
+  return mpfr_nan_p(&x_.m) != 0;
 }
 
 /// \return The absolute value of the argument.
@@ -55,7 +55,7 @@ auto pow(mp_float_t<P> const& base, mp_float_t<P> const& exponent) noexcept -> m
 /// @param[out] cos_dest Reference to the number that will be set to the cosine value.
 template <precision_t P>
 void sincos(mp_float_t<P> const& arg, mp_float_t<P>& sin_dest, mp_float_t<P>& cos_dest) noexcept {
-  if (sin_dest == cos_dest) {
+  if (&sin_dest == &cos_dest) {
     _::crash_with_message("sin_dest and cos_dest cannot alias.");
   }
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
@@ -113,7 +113,7 @@ template <precision_t P>
 auto nexttoward(mp_float_t<P> const& from, mp_float_t<P> const& to) noexcept -> mp_float_t<P> {
   mp_float_t<P> out = from;
   {
-    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(from);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(to);
     mpfr_nexttoward(&g.m, &y_.m);
   }
