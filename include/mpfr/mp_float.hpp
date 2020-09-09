@@ -96,16 +96,13 @@ template <precision_t Precision> struct mp_float_t {
     }
 
     if (pow2 != nullptr) {
-      mp_float_t out;
-      out.m_exponent = a.m_exponent;
-      out.m_actual_prec_sign = a.m_actual_prec_sign;
+      mp_float_t out = *other;
       if (_::mul_b_is_pow2(
               &out.m_exponent,
               &out.m_actual_prec_sign,
               pow2->m_exponent,
               pow2->m_actual_prec_sign,
               false)) {
-        std::memcpy(out.m_mantissa, a.m_mantissa, sizeof(out.m_mantissa));
         return out;
       }
     }
@@ -135,17 +132,17 @@ template <precision_t Precision> struct mp_float_t {
    */
   ///@{
   /// \n
-  [[MPFR_CXX_NODISCARD]] inline auto operator+=(mp_float_t const& b) noexcept -> mp_float_t& {
+  inline auto operator+=(mp_float_t const& b) noexcept -> mp_float_t& {
     *this = *this + b;
     return *this;
   }
   /// \n
-  [[MPFR_CXX_NODISCARD]] inline auto operator-=(mp_float_t const& b) noexcept -> mp_float_t& {
+  inline auto operator-=(mp_float_t const& b) noexcept -> mp_float_t& {
     *this = *this - b;
     return *this;
   }
   /// \n
-  [[MPFR_CXX_NODISCARD]] inline auto operator*=(mp_float_t const& b) noexcept -> mp_float_t& {
+  inline auto operator*=(mp_float_t const& b) noexcept -> mp_float_t& {
     if (_::prec_abs(b.m_actual_prec_sign) == 1) {
       if (_::mul_b_is_pow2(
               &m_exponent, &m_actual_prec_sign, b.m_exponent, b.m_actual_prec_sign, false)) {
@@ -156,7 +153,7 @@ template <precision_t Precision> struct mp_float_t {
     return *this;
   }
   /// \n
-  [[MPFR_CXX_NODISCARD]] inline auto operator/=(mp_float_t const& b) noexcept -> mp_float_t& {
+  inline auto operator/=(mp_float_t const& b) noexcept -> mp_float_t& {
     if (_::prec_abs(b.m_actual_prec_sign) == 1) {
       if (_::mul_b_is_pow2( //
               &m_exponent,
@@ -176,27 +173,33 @@ template <precision_t Precision> struct mp_float_t {
    */
   ///@{
   /// \n
-  friend auto operator==(mp_float_t const& a, mp_float_t const& b) noexcept -> bool {
+  [[MPFR_CXX_NODISCARD]] friend auto operator==(mp_float_t const& a, mp_float_t const& b) noexcept
+      -> bool {
     return comparison_op(a, b, mpfr_equal_p);
   }
   /// \n
-  friend auto operator!=(mp_float_t const& a, mp_float_t const& b) noexcept -> bool {
+  [[MPFR_CXX_NODISCARD]] friend auto operator!=(mp_float_t const& a, mp_float_t const& b) noexcept
+      -> bool {
     return comparison_op(a, b, mpfr_lessgreater_p);
   }
   /// \n
-  friend auto operator<(mp_float_t const& a, mp_float_t const& b) noexcept -> bool {
+  [[MPFR_CXX_NODISCARD]] friend auto operator<(mp_float_t const& a, mp_float_t const& b) noexcept
+      -> bool {
     return comparison_op(a, b, mpfr_less_p);
   }
   /// \n
-  friend auto operator<=(mp_float_t const& a, mp_float_t const& b) noexcept -> bool {
+  [[MPFR_CXX_NODISCARD]] friend auto operator<=(mp_float_t const& a, mp_float_t const& b) noexcept
+      -> bool {
     return comparison_op(a, b, mpfr_lessequal_p);
   }
   /// \n
-  friend auto operator>(mp_float_t const& a, mp_float_t const& b) noexcept -> bool {
+  [[MPFR_CXX_NODISCARD]] friend auto operator>(mp_float_t const& a, mp_float_t const& b) noexcept
+      -> bool {
     return comparison_op(a, b, mpfr_greater_p);
   }
   /// \n
-  friend auto operator>=(mp_float_t const& a, mp_float_t const& b) noexcept -> bool {
+  [[MPFR_CXX_NODISCARD]] friend auto operator>=(mp_float_t const& a, mp_float_t const& b) noexcept
+      -> bool {
     return comparison_op(a, b, mpfr_greaterequal_p);
   }
   ///@}
@@ -320,12 +323,14 @@ template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Pr
   using T = mpfr::mp_float_t<Precision>;
   static constexpr bool is_specialized = true;
   static auto(max)() noexcept -> T {
-    T out = 0.5L;
-    out._m_exponent = mpfr_get_emax();
+    T out = one_m_eps_impl();
+    mpfr::_::impl_access::exp_mut(out) = mpfr_get_emax();
+    return out;
   }
   static auto(min)() noexcept -> T {
     T out = 0.5L;
-    out._m_exponent = mpfr_get_emin();
+    mpfr::_::impl_access::exp_mut(out) = mpfr_get_emin();
+    return out;
   }
   static auto lowest() noexcept -> T { return -(max)(); }
 
@@ -370,12 +375,21 @@ template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Pr
 
 private:
   static auto epsilon_impl() -> T {
-    T x{1};
+    T x = 1;
     {
       mpfr::_::mpfr_raii_setter_t&& g = mpfr::_::impl_access::mpfr_setter(x);
       mpfr_nextabove(&g.m);
       mpfr_sub_ui(&g.m, &g.m, 1, MPFR_RNDN);
     }
+    return x;
+  }
+  static auto one_m_eps_impl() -> T {
+    T x = 1;
+    {
+      mpfr::_::mpfr_raii_setter_t&& g = mpfr::_::impl_access::mpfr_setter(x);
+      mpfr_nextbelow(&g.m);
+    }
+    return x;
   }
 };
 } // namespace std

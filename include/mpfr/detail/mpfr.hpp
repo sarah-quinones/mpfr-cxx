@@ -138,7 +138,8 @@ inline constexpr auto prec_abs(mpfr_prec_t p) -> mpfr_prec_t { return prec_negat
 
 inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
 
-  if (mpfr_custom_get_kind(x) != MPFR_REGULAR_KIND) {
+  if (mpfr_custom_get_kind(x) != MPFR_REGULAR_KIND and
+      mpfr_custom_get_kind(x) != -MPFR_REGULAR_KIND) {
     return 0;
   }
 
@@ -227,7 +228,15 @@ struct mpfr_raii_setter_t /* NOLINT */ {
         m_old_actual_prec_sign{*actual_prec_sign_ptr},
         m_old_exponent{*exponent_ptr},
         m_exponent_ptr{exponent_ptr},
-        m_actual_prec_sign_ptr{actual_prec_sign_ptr} {}
+        m_actual_prec_sign_ptr{actual_prec_sign_ptr} {
+
+    mpfr_sign_t sign = (m_old_actual_prec_sign < 0) ? -1 : 1;
+    mpfr_prec_t actual_prec = prec_abs(m_old_actual_prec_sign);
+
+    if (actual_prec == 0 and m_old_exponent == 0) {
+      mpfr_custom_init_set(&m, sign * MPFR_ZERO_KIND, 0, precision, mantissa);
+    }
+  }
 
   mpfr_raii_setter_t(mpfr_raii_setter_t const&) = delete;
   mpfr_raii_setter_t(mpfr_raii_setter_t&&) = delete;
@@ -235,6 +244,7 @@ struct mpfr_raii_setter_t /* NOLINT */ {
   auto operator=(mpfr_raii_setter_t &&) -> mpfr_raii_setter_t& = delete;
 
   ~mpfr_raii_setter_t() {
+
     mpfr_prec_t actual_prec_sign = prec_negate_if(
         mpfr_regular_p(&m)                               //
             ? ((m_actual_precision == mpfr_get_prec(&m)) //
@@ -267,12 +277,13 @@ HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2(
   typename _::remove_pointer<mpfr_ptr>::type ea_{0, 0, *a_exp, nullptr};
 
   mpfr_prec_t eb{div ? (1 - b_exponent) : b_exponent - 1};
-  if (HEDLEY_LIKELY(
-          mpfr_regular_p(&ea_) and                //
-          (*a_exp + eb - 1) < mpfr_get_emax() and //
-          (*a_exp + eb - 1) > mpfr_get_emin())) {
 
-    *a_prec_sign = (b_actual_prec_sign < 0) ? -*a_prec_sign : *a_prec_sign;
+  if (HEDLEY_LIKELY(
+          mpfr_regular_p(&ea_) and            //
+          (*a_exp + eb) < mpfr_get_emax() and //
+          (*a_exp + eb) >= mpfr_get_emin())) {
+
+    *a_prec_sign = prec_negate_if(*a_prec_sign, b_actual_prec_sign < 0);
     *a_exp += eb;
     return true;
   }
@@ -469,7 +480,7 @@ struct impl_access {
 
     mpfr_prec_t actual_prec = prec_abs(x.m_actual_prec_sign);
 
-    if (actual_prec == 0) {
+    if (actual_prec == 0 and x.m_exponent == 0) {
       mpfr_custom_init_set(&out.m, sign * MPFR_ZERO_KIND, x.m_exponent, 1, x.m_mantissa);
       return out;
     }
@@ -494,6 +505,21 @@ struct impl_access {
     };
   }
 };
+
+template <typename CharT, typename Traits, precision_t P>
+inline void dump_repr(std::basic_ostream<CharT, Traits>& out, mp_float_t<P> const& x) {
+  out << "value\n";
+  out << x << '\n';
+  out << "repr\n";
+  out << "exp       : " << impl_access::exp_const(x) << '\n';
+  out << "prec|sign : " << impl_access::actual_prec_sign_const(x) << '\n';
+  out << "mantissa  : ";
+  for (auto e : impl_access::mantissa_const(x)) {
+    out << e << ' ';
+  }
+  out << '\n';
+  out << "end\n";
+}
 
 template <precision_t P>
 auto apply_unary_op(mp_float_t<P> const& x, int (*op)(mpfr_ptr, mpfr_srcptr, mpfr_rnd_t)) noexcept

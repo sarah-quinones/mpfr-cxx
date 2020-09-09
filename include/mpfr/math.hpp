@@ -124,7 +124,7 @@ auto nexttoward(mp_float_t<P> const& from, mp_float_t<P> const& to) noexcept -> 
 template <precision_t P> auto nextabove(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   mp_float_t<P> out = arg;
   {
-    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_nextabove(&g.m);
   }
   return out;
@@ -134,7 +134,7 @@ template <precision_t P> auto nextabove(mp_float_t<P> const& arg) noexcept -> mp
 template <precision_t P> auto nextbelow(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   mp_float_t<P> out = arg;
   {
-    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_nextbelow(&g.m);
   }
   return out;
