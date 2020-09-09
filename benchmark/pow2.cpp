@@ -1,4 +1,3 @@
-#define CXX_MPFR_DEBUG 0
 #include "mpfr/mpfr.hpp"
 
 #include <boost/multiprecision/mpfr.hpp>
@@ -32,7 +31,7 @@ auto main() -> int {
 
   auto bench = ankerl::nanobench::Bench();
 
-  bench.minEpochTime(std::chrono::nanoseconds{100'000'000ULL});
+  bench.minEpochTime(std::chrono::milliseconds{100UL});
 
   bench_mul_div<scalar_t<100>>(bench, 128.0, "d");
   bench_mul_div<bscalar_t<100>>(bench, 128.0, "d boost");

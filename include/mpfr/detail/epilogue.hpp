@@ -1,8 +1,9 @@
-#ifndef CXX_MPFR_PROLOGUE
+#ifndef MPFR_CXX_PROLOGUE
 #error "prologue missing"
 #endif
 
-#undef CXX_MPFR_PROLOGUE
-#undef CXX_MPFR_STRINGIZE2
-#undef CXX_MPFR_STRINGIZE
-#undef CXX_MPFR_ASSERT
+#undef MPFR_CXX_PROLOGUE
+#undef MPFR_CXX_STRINGIZE2
+#undef MPFR_CXX_STRINGIZE
+#undef MPFR_CXX_ASSERT
+#undef MPFR_CXX_NODISCARD

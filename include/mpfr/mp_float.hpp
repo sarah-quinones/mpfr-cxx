@@ -9,10 +9,14 @@ namespace mpfr {
 /// Stack allocated fixed precision floating point.\n
 /// Arithmetic and comparison operators follow IEEE 754 rules.
 template <precision_t Precision> struct mp_float_t {
-  /// Default initialization (`mp_float_t<P> a;`) leaves the number uninitialized.
+  static_assert(static_cast<mpfr_prec_t>(Precision) > 0, "precision must be positive.");
+
+  /// Default/Zero initialization sets the number to positive zero.
   ///
-  /// Zero initialization (`mp_float_t<P> a{}`) sets the number to positive zero.
-  mp_float_t() noexcept = default;
+  /// `mp_float_t<_> a;`
+  ///
+  /// `mp_float_t<_> a{};`
+  mp_float_t() noexcept { std::memset(this, 0, sizeof(*this)); };
 
   /// \n
   mp_float_t // NOLINT(hicpp-explicit-conversions,cppcoreguidelines-pro-type-member-init)
@@ -50,7 +54,7 @@ template <precision_t Precision> struct mp_float_t {
   }
 
   /// \n
-  [[nodiscard]] explicit operator double() const noexcept {
+  [[MPFR_CXX_NODISCARD]] explicit operator double() const noexcept {
     _::mpfr_cref_t m = _::impl_access::mpfr_cref(*this);
     return mpfr_get_d(&m.m, MPFR_RNDN);
   }
@@ -58,26 +62,28 @@ template <precision_t Precision> struct mp_float_t {
    */
   ///@{
   /// \n
-  [[nodiscard]] friend auto operator+(mp_float_t const& a) noexcept -> mp_float_t { return a; }
+  [[MPFR_CXX_NODISCARD]] friend auto operator+(mp_float_t const& a) noexcept -> mp_float_t {
+    return a;
+  }
   /// \n
-  [[nodiscard]] friend auto operator-(mp_float_t const& a) noexcept -> mp_float_t {
+  [[MPFR_CXX_NODISCARD]] friend auto operator-(mp_float_t const& a) noexcept -> mp_float_t {
     mp_float_t out{a};
     out.m_actual_prec_sign = _::prec_negate_if(out.m_actual_prec_sign, true);
     return out;
   }
 
   /// \n
-  [[nodiscard]] friend auto operator+(mp_float_t const& a, mp_float_t const& b) noexcept
+  [[MPFR_CXX_NODISCARD]] friend auto operator+(mp_float_t const& a, mp_float_t const& b) noexcept
       -> mp_float_t {
     return arithmetic_op(a, b, _::set_add);
   }
   /// \n
-  [[nodiscard]] friend auto operator-(mp_float_t const& a, mp_float_t const& b) noexcept
+  [[MPFR_CXX_NODISCARD]] friend auto operator-(mp_float_t const& a, mp_float_t const& b) noexcept
       -> mp_float_t {
     return arithmetic_op(a, b, _::set_sub);
   }
   /// \n
-  [[nodiscard]] friend auto operator*(mp_float_t const& a, mp_float_t const& b) noexcept
+  [[MPFR_CXX_NODISCARD]] friend auto operator*(mp_float_t const& a, mp_float_t const& b) noexcept
       -> mp_float_t {
     mp_float_t const* pow2 = nullptr;
     mp_float_t const* other; // NOLINT(cppcoreguidelines-init-variables)
@@ -108,7 +114,7 @@ template <precision_t Precision> struct mp_float_t {
   }
 
   /// \n
-  [[nodiscard]] friend auto operator/(mp_float_t const& a, mp_float_t const& b) noexcept
+  [[MPFR_CXX_NODISCARD]] friend auto operator/(mp_float_t const& a, mp_float_t const& b) noexcept
       -> mp_float_t {
     if (_::prec_abs(b.m_actual_prec_sign) == 1) {
       mp_float_t out;
@@ -129,17 +135,17 @@ template <precision_t Precision> struct mp_float_t {
    */
   ///@{
   /// \n
-  [[nodiscard]] inline auto operator+=(mp_float_t const& b) noexcept -> mp_float_t& {
+  [[MPFR_CXX_NODISCARD]] inline auto operator+=(mp_float_t const& b) noexcept -> mp_float_t& {
     *this = *this + b;
     return *this;
   }
   /// \n
-  [[nodiscard]] inline auto operator-=(mp_float_t const& b) noexcept -> mp_float_t& {
+  [[MPFR_CXX_NODISCARD]] inline auto operator-=(mp_float_t const& b) noexcept -> mp_float_t& {
     *this = *this - b;
     return *this;
   }
   /// \n
-  [[nodiscard]] inline auto operator*=(mp_float_t const& b) noexcept -> mp_float_t& {
+  [[MPFR_CXX_NODISCARD]] inline auto operator*=(mp_float_t const& b) noexcept -> mp_float_t& {
     if (_::prec_abs(b.m_actual_prec_sign) == 1) {
       if (_::mul_b_is_pow2(
               &m_exponent, &m_actual_prec_sign, b.m_exponent, b.m_actual_prec_sign, false)) {
@@ -150,7 +156,7 @@ template <precision_t Precision> struct mp_float_t {
     return *this;
   }
   /// \n
-  [[nodiscard]] inline auto operator/=(mp_float_t const& b) noexcept -> mp_float_t& {
+  [[MPFR_CXX_NODISCARD]] inline auto operator/=(mp_float_t const& b) noexcept -> mp_float_t& {
     if (_::prec_abs(b.m_actual_prec_sign) == 1) {
       if (_::mul_b_is_pow2( //
               &m_exponent,
@@ -209,7 +215,7 @@ template <precision_t Precision> struct mp_float_t {
 private:
   friend struct _::impl_access;
 
-  [[nodiscard]] static auto arithmetic_op(
+  [[MPFR_CXX_NODISCARD]] static auto arithmetic_op(
       mp_float_t const& a,
       mp_float_t const& b,
       void (*op)(_::mpfr_raii_setter_t&, _::mpfr_cref_t, _::mpfr_cref_t)) -> mp_float_t {
@@ -223,7 +229,7 @@ private:
     return out;
   }
 
-  [[nodiscard]] static auto
+  [[MPFR_CXX_NODISCARD]] static auto
   comparison_op(mp_float_t const& a, mp_float_t const& b, int (*comp)(mpfr_srcptr, mpfr_srcptr))
       -> bool {
     _::mpfr_cref_t a_ = _::impl_access::mpfr_cref(a);
@@ -232,38 +238,80 @@ private:
   }
   static constexpr mpfr_prec_t precision = static_cast<mpfr_prec_t>(Precision);
 
-  mp_limb_t m_mantissa[_::prec_to_nlimb(static_cast<std::uint64_t>(Precision))];
-  mpfr_exp_t m_exponent;
-  mpfr_exp_t m_actual_prec_sign;
+  mp_limb_t m_mantissa[_::prec_to_nlimb(static_cast<std::uint64_t>(Precision))]{};
+  mpfr_exp_t m_exponent{};
+  mpfr_exp_t m_actual_prec_sign{};
 };
 
+#if defined(callable_return_type) or defined(callable_is_noexcept)
+#error "reserved macro is already defined"
+#endif
+
+#define callable_is_noexcept                                                                       \
+  ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::nothrow_value
+
+#if defined(__cpp_concepts)
+
+#define callable_return_type                                                                       \
+  requires(                                                                                        \
+      (::mpfr::_::is_mp_float<typename ::std::remove_reference<Args>::type>::value and ...) and    \
+      ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::value) /**/     \
+      typename ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::type
+
+#elif __cplusplus >= 201703L
+
+#define callable_return_type                                                                       \
+  typename _::enable_if_t<                                                                         \
+      ((::mpfr::_::is_mp_float<typename ::std::remove_reference<Args>::type>::value and ...) and   \
+       ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::value),        \
+      typename ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>>::type
+
+#else
+
+#define callable_return_type                                                                       \
+  typename _::enable_if_t<                                                                         \
+      (::mpfr::_::all_of(                                                                          \
+           {::mpfr::_::is_mp_float<typename std::remove_reference<Args>::type>::value...}) and     \
+       ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>::value),          \
+      typename ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>>::type
+
+#endif
+
 /// Allows handling `mp_float_t<_>` objects through `mpfr_ptr`/`mpfr_srcptr` proxy objects.
-/// If after the callable is executed, an `out`/`inout` parameter has been set by mpfr, the
+/// If after the callable is executed, one of the arguments has been modified by mpfr, the
 /// corresponding `mp_float_t<_>` object is set to the equivalent value.
 ///
 /// If any of the following occurs, the behavior is undefined:
-/// * Multiple `out`/`inout` parameters alias.
-/// * The object referenced by an `out`/`inout` parameter is accessed while the callable is being
-/// run (except through the `mpfr_ptr` proxy).
-/// * An `mpfr_ptr` proxy from an `out` parameter is read before it's written.
+/// * A parameter that is modified aliases another parameter.
+/// * The `mp_float_t<_>` object referenced by a parameter that is modified is accessed
+/// while the callable is being run (except through the `mpfr_ptr` proxy).
 ///
 /// \par Side effects
-/// Arguments corresponding to `in`/`inout` parameters are accessed regardless of whether the
-/// corresponding `mpfr_srcptr`/`mpfrptr` is accessed by the callable, so they must be initialized
-/// before it's called, and extra care must be taken in multithreaded scenarios.
+/// Arguments are read before the callable is executed regardless of whether the
+/// corresponding `mpfr_srcptr`/`mpfr_ptr` is accessed by the callable
+//
+/// \return The return value of the callable.
 ///
-/// @tparam Parameter_Types A sequence of `in`, `out` and `inout` depending on how the function
-/// arguments are to be interpreted.
-/// @param[in] fn   Arguments of type `mp_float_t<_>`. Each one must satisfy the constraints
-/// of the corresponding `parameter_type`
-/// @param[in] fn   A callable that takes arguments of type `mpfr_ptr` for `out` and `inout`
-/// parameters, or `mpfr_srcptr` for `in` parameters.
-template <parameter_type... Parameter_Types, typename Fn, typename... Arguments>
-void handle_as_mpfr_t(Fn&& fn, Arguments&&... args) {
-  static_cast<Fn&&>(fn)(
-      _::into_mpfr<Parameter_Types>::get_pointer(_::into_mpfr<Parameter_Types>::get_mpfr(args))...);
+/// @param[in] fn   Arguments of type `mp_float_t<_>`.
+/// @param[in] fn   A callable that takes arguments of type `mpfr_ptr` for mutable
+/// parameters, or `mpfr_srcptr` for immutable parameters.
+template <typename Fn, typename... Args>
+callable_return_type
+handle_as_mpfr_t(Fn&& fn, Args&&... args) // NOLINT(modernize-use-trailing-return-type)
+    noexcept(callable_is_noexcept) {
+  return static_cast<Fn&&>(fn)(_::into_mpfr<                                                 //
+                               std::is_const<                                                //
+                                   typename std::remove_reference<Args>::type                //
+                                   >::value                                                  //
+                               >::get_pointer(_::into_mpfr<                                  //
+                                              std::is_const<                                 //
+                                                  typename std::remove_reference<Args>::type //
+                                                  >::value                                   //
+                                              >::get_mpfr(args))...);
 }
 
+#undef callable_is_noexcept
+#undef callable_return_type
 } // namespace mpfr
 
 // stl numeric_limits
@@ -324,7 +372,7 @@ private:
   static auto epsilon_impl() -> T {
     T x{1};
     {
-      mpfr::_::mpfr_raii_inout_t&& g = mpfr::_::impl_access::mpfr_inout_setter(x);
+      mpfr::_::mpfr_raii_setter_t&& g = mpfr::_::impl_access::mpfr_setter(x);
       mpfr_nextabove(&g.m);
       mpfr_sub_ui(&g.m, &g.m, 1, MPFR_RNDN);
     }

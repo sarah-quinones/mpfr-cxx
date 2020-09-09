@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <iosfwd>
 #include <utility>
+#include <type_traits>
 
 #include <mpfr.h>
 
@@ -20,20 +21,7 @@ namespace mpfr {
 
 /// The count of bits that make up the number's mantissa.\n
 /// This must be a strictly positive value.
-enum struct precision_t : mpfr_prec_t { reserved = 0 };
-
-/// Types of the parameters passed to the mpfr interface layer.
-///
-/// See the documentation of :cpp:func:`mpfr::handle_as_mpfr_t` for details on the constraints of
-/// each type.
-enum parameter_type {
-  /// Read-only argument.
-  in,
-  /// Writable argument.
-  out,
-  /// Readable/writable argument.
-  inout,
-};
+enum struct precision_t : mpfr_prec_t {};
 
 /// Number of digits in base 2.
 struct digits2 {

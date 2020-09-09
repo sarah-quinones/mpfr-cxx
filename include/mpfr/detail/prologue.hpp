@@ -1,20 +1,22 @@
-#ifdef CXX_MPFR_PROLOGUE
+#ifdef MPFR_CXX_PROLOGUE
 #error "epilogue missing"
 #endif
-#define CXX_MPFR_PROLOGUE
+#define MPFR_CXX_PROLOGUE
 
-#ifndef CXX_MPFR_DEBUG
-#define CXX_MPFR_DEBUG 0
+#ifndef MPFR_CXX_DEBUG
+#define MPFR_CXX_DEBUG 0
 #endif
 
-#if CXX_MPFR_DEBUG == 1
-#define CXX_MPFR_STRINGIZE2(...) #__VA_ARGS__
-#define CXX_MPFR_STRINGIZE(...) CXX_MPFR_STRINGIZE2(__VA_ARGS__)
-#define CXX_MPFR_ASSERT(...)                                                                       \
+#if MPFR_CXX_DEBUG == 1
+#define MPFR_CXX_STRINGIZE2(...) #__VA_ARGS__
+#define MPFR_CXX_STRINGIZE(...) MPFR_CXX_STRINGIZE2(__VA_ARGS__)
+#define MPFR_CXX_ASSERT(...)                                                                       \
   (static_cast<bool>(__VA_ARGS__)                                                                  \
        ? (void)0                                                                                   \
        : ::mpfr::_::crash_with_message("assertion_failed at " __FILE__                             \
-                                       ":" CXX_MPFR_STRINGIZE(__LINE__) "\n" #__VA_ARGS__))
+                                       ":" MPFR_CXX_STRINGIZE(__LINE__) "\n" #__VA_ARGS__))
 #else
-#define CXX_MPFR_ASSERT(...) ((void)0)
+#define MPFR_CXX_ASSERT(...) ((void)0)
 #endif
+
+#define MPFR_CXX_NODISCARD HEDLEY_DIAGNOSTIC_DISABLE_CPP98_COMPAT_WRAP_(nodiscard)

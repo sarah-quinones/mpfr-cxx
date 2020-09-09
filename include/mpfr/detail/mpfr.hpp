@@ -3,6 +3,7 @@
 
 #include "mpfr/enums.hpp"
 #include "mpfr/detail/prologue.hpp"
+#include <initializer_list>
 
 namespace mpfr {
 
@@ -17,6 +18,14 @@ namespace _ {
 
 using std::size_t;
 using std::uint64_t;
+
+constexpr auto all_of_impl(bool const conds[], size_t n) -> bool {
+  return n == 0 ? true : (*conds and all_of_impl(conds + 1, n - 1));
+}
+
+constexpr auto all_of(std::initializer_list<bool> conds) -> bool {
+  return all_of_impl(conds.begin(), conds.size());
+}
 
 constexpr auto round_up_to_multiple(uint64_t n, uint64_t k) -> uint64_t {
   return (n + k - 1) / k * k;
@@ -52,7 +61,7 @@ inverse_binary_search(uint64_t n, uint64_t low, uint64_t high, uint64_t (*func)(
 
 /// func must be strictly increasing
 /// returns smallest m such that func(m) >= n
-constexpr auto inverse(uint64_t n, uint64_t (*func)(uint64_t)) {
+constexpr auto inverse(uint64_t n, uint64_t (*func)(uint64_t)) -> uint64_t {
   return n == 0 ? 0 : inverse_binary_search(n, 0, n, func);
 }
 
@@ -67,8 +76,50 @@ constexpr auto prec_to_nlimb(mpfr_prec_t prec) -> uint64_t {
          sizeof(mp_limb_t);
 }
 
+template <typename T> struct void_impl { using type = void; };
+
 template <typename T> struct remove_pointer;
 template <typename T> struct remove_pointer<T*> { using type = T; };
+
+template <typename T> struct is_mp_float : std::false_type {};
+template <precision_t P> struct is_mp_float<mp_float_t<P>> : std::true_type {};
+template <precision_t P> struct is_mp_float<mp_float_t<P> const> : std::true_type {};
+
+template <typename T> struct to_mpfr_ptr { using type = void; };
+template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>> { using type = mpfr_ptr; };
+template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>&> { using type = mpfr_ptr; };
+template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const> { using type = mpfr_srcptr; };
+template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const&> { using type = mpfr_srcptr; };
+
+template <bool Cond, typename T> using enable_if_t = typename std::enable_if<Cond, T>::type;
+
+template <typename Enable, typename T, typename... Args> struct invocable_impl {
+  static constexpr bool value = false;
+  static constexpr bool nothrow_value = false;
+  using type = void;
+};
+
+#define MPFR_CXX_DECLVAL(...) (*(static_cast < __VA_ARGS__ && (*)() noexcept > (nullptr)))()
+
+template <typename Fn, typename... Args>
+struct invocable_impl<
+    typename void_impl<decltype(MPFR_CXX_DECLVAL(Fn)(MPFR_CXX_DECLVAL(Args)...))>::type,
+    Fn,
+    Args...> {
+  static constexpr bool value = true;
+  static constexpr bool nothrow_value = noexcept(MPFR_CXX_DECLVAL(Fn)(MPFR_CXX_DECLVAL(Args)...));
+  using type = decltype(MPFR_CXX_DECLVAL(Fn)(MPFR_CXX_DECLVAL(Args)...));
+};
+
+#undef MPFR_CXX_DECLVAL
+
+template <typename Fn, typename... Args> struct is_invocable : invocable_impl<void, Fn, Args...> {};
+
+template <typename T> struct remove_reference { using type = T; };
+template <typename T> struct remove_reference<T&> { using type = T; };
+
+template <typename T> struct is_const { static constexpr bool value = false; };
+template <typename T> struct is_const<T const> { static constexpr bool value = true; };
 
 static constexpr uint64_t limb_pack_size = 32 / sizeof(mp_limb_t);
 static constexpr mp_limb_t zero_pack[limb_pack_size] = {};
@@ -144,7 +195,7 @@ struct mpfr_cref_t {
   typename remove_pointer<mpfr_ptr>::type m;
 
   void flip_sign_if(bool cond) { cond ? (void)(MPFR_SIGN(&m) *= -1) : (void)0; }
-  [[nodiscard]] auto pow2_exponent() const -> mpfr_exp_t { return mpfr_custom_get_exp(&m) - 1; }
+  auto pow2_exponent() const -> mpfr_exp_t { return mpfr_custom_get_exp(&m) - 1; }
   void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
@@ -156,77 +207,12 @@ struct mpfr_raii_setter_t /* NOLINT */ {
    */
   typename remove_pointer<mpfr_ptr>::type m;
   mpfr_prec_t m_actual_precision;
+  mpfr_prec_t m_old_actual_prec_sign;
+  mpfr_exp_t m_old_exponent;
   mpfr_exp_t* m_exponent_ptr{};
   mpfr_prec_t* m_actual_prec_sign_ptr{};
 
   mpfr_raii_setter_t(
-      mpfr_prec_t precision,
-      mp_limb_t* mantissa,
-      mpfr_exp_t* exponent_ptr,
-      mpfr_prec_t* actual_prec_sign_ptr)
-      : m{},
-        m_actual_precision{precision},
-        m_exponent_ptr{exponent_ptr},
-        m_actual_prec_sign_ptr{actual_prec_sign_ptr} {
-
-    mpfr_custom_init_set( //
-        &m,
-        MPFR_NAN_KIND,
-        0,
-        precision,
-        mantissa);
-
-    // poison value
-    MPFR_SIGN(&m) = std::numeric_limits<mpfr_sign_t>::max();
-    mpfr_custom_get_exp(&m) = std::numeric_limits<mpfr_exp_t>::max();
-  }
-  mpfr_raii_setter_t(mpfr_raii_setter_t const&) = delete;
-  mpfr_raii_setter_t(mpfr_raii_setter_t&&) = delete;
-  auto operator=(mpfr_raii_setter_t const&) -> mpfr_raii_setter_t& = delete;
-  auto operator=(mpfr_raii_setter_t &&) -> mpfr_raii_setter_t& = delete;
-
-  ~mpfr_raii_setter_t() {
-    // if exponent is poisoned, do nothing
-    if (mpfr_custom_get_exp(&m) == std::numeric_limits<mpfr_exp_t>::max()) {
-      return;
-    }
-    // exponent is set
-    // if sign is poisoned, set to positive
-    if (MPFR_SIGN(&m) == std::numeric_limits<mpfr_sign_t>::max()) {
-      MPFR_SIGN(&m) = 1;
-    }
-    CXX_MPFR_ASSERT(MPFR_SIGN(&m) != std::numeric_limits<mpfr_sign_t>::max());
-    CXX_MPFR_ASSERT(mpfr_custom_get_exp(&m) != std::numeric_limits<mpfr_exp_t>::max());
-
-    if (mpfr_regular_p(&m)) {
-      *m_exponent_ptr = mpfr_custom_get_exp(&m);
-      *m_actual_prec_sign_ptr = prec_negate_if(
-          (m_actual_precision == mpfr_get_prec(&m)) ? compute_actual_prec(&m) : m_actual_precision,
-          mpfr_signbit(&m));
-    } else {
-      std::memset(
-          mpfr_custom_get_significand(&m), 0, sizeof(mp_limb_t) * prec_to_nlimb(mpfr_get_prec(&m)));
-      *m_actual_prec_sign_ptr = prec_negate_if(0, mpfr_signbit(&m));
-      *m_exponent_ptr = mpfr_zero_p(&m) ? 0 : mpfr_get_exp(&m);
-    }
-  }
-
-  void flip_sign_if(bool cond) { cond ? (void)(MPFR_SIGN(&m) *= -1) : (void)0; }
-  [[nodiscard]] auto pow2_exponent() const -> mpfr_exp_t { return mpfr_custom_get_exp(&m) - 1; }
-  void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
-};
-
-struct mpfr_raii_inout_t /* NOLINT */ {
-  /* can only set once
-   * sign and exponent of m must be set
-   * if precision of m is equal to actual_precision, compute actual_precision
-   * otherwise, set actual_precision_ptr's value to actual_precision
-   */
-  typename remove_pointer<mpfr_ptr>::type m;
-  mpfr_exp_t* m_exponent_ptr{};
-  mpfr_prec_t* m_actual_prec_sign_ptr{};
-
-  mpfr_raii_inout_t(
       mpfr_prec_t precision,
       mp_limb_t* mantissa,
       mpfr_exp_t* exponent_ptr,
@@ -237,51 +223,42 @@ struct mpfr_raii_inout_t /* NOLINT */ {
         (*exponent_ptr),
         mantissa,
       },
+        m_actual_precision{precision},
+        m_old_actual_prec_sign{*actual_prec_sign_ptr},
+        m_old_exponent{*exponent_ptr},
         m_exponent_ptr{exponent_ptr},
         m_actual_prec_sign_ptr{actual_prec_sign_ptr} {}
 
-  mpfr_raii_inout_t(mpfr_raii_inout_t const&) = delete;
-  mpfr_raii_inout_t(mpfr_raii_inout_t&&) = delete;
-  auto operator=(mpfr_raii_inout_t const&) -> mpfr_raii_inout_t& = delete;
-  auto operator=(mpfr_raii_inout_t &&) -> mpfr_raii_inout_t& = delete;
+  mpfr_raii_setter_t(mpfr_raii_setter_t const&) = delete;
+  mpfr_raii_setter_t(mpfr_raii_setter_t&&) = delete;
+  auto operator=(mpfr_raii_setter_t const&) -> mpfr_raii_setter_t& = delete;
+  auto operator=(mpfr_raii_setter_t &&) -> mpfr_raii_setter_t& = delete;
 
-  ~mpfr_raii_inout_t() {
-    mpfr_exp_t new_exponent{};
-    mpfr_prec_t new_actual_prec_sign{};
-    if (mpfr_regular_p(&m)) {
-      new_exponent = mpfr_custom_get_exp(&m);
-      new_actual_prec_sign = prec_negate_if(compute_actual_prec(&m), mpfr_signbit(&m));
-    } else {
-      new_actual_prec_sign = prec_negate_if(0, mpfr_signbit(&m));
-      new_exponent = mpfr_zero_p(&m) ? 0 : mpfr_get_exp(&m);
-      typename remove_pointer<mpfr_ptr>::type original{
-          mpfr_get_prec(&m),
-          (*m_actual_prec_sign_ptr) < 0 ? -1 : 1,
-          (*m_exponent_ptr),
-          nullptr,
-      };
-      if (mpfr_regular_p(&original)) {
-        std::memset(
-            mpfr_custom_get_significand(&m),
-            0,
-            sizeof(mp_limb_t) * prec_to_nlimb(mpfr_get_prec(&m)));
-      }
+  ~mpfr_raii_setter_t() {
+    mpfr_prec_t actual_prec_sign = prec_negate_if(
+        mpfr_regular_p(&m)                               //
+            ? ((m_actual_precision == mpfr_get_prec(&m)) //
+                   ? compute_actual_prec(&m)
+                   : m_actual_precision)
+            : 0,
+        mpfr_signbit(&m));
+
+    if (m_old_actual_prec_sign != actual_prec_sign) {
+      *m_actual_prec_sign_ptr = actual_prec_sign;
     }
 
-    if (*m_exponent_ptr != new_exponent) {
-      *m_exponent_ptr = new_exponent;
-    }
-    if (*m_actual_prec_sign_ptr != new_actual_prec_sign) {
-      *m_actual_prec_sign_ptr = new_actual_prec_sign;
+    mpfr_exp_t exp = mpfr_zero_p(&m) ? 0 : mpfr_get_exp(&m);
+    if (m_old_exponent != exp) {
+      *m_exponent_ptr = exp;
     }
   }
 
   void flip_sign_if(bool cond) { cond ? (void)(MPFR_SIGN(&m) *= -1) : (void)0; }
-  [[nodiscard]] auto pow2_exponent() const -> mpfr_exp_t { return mpfr_custom_get_exp(&m) - 1; }
+  auto pow2_exponent() const -> mpfr_exp_t { return mpfr_custom_get_exp(&m) - 1; }
   void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
-[[nodiscard]] HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2(
+HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2(
     mpfr_exp_t* a_exp,
     mpfr_exp_t* a_prec_sign,
     mpfr_exp_t b_exponent,
@@ -305,7 +282,7 @@ struct mpfr_raii_inout_t /* NOLINT */ {
 inline void set_d(mpfr_raii_setter_t& out, double a) {
   mpfr_set_d(&out.m, a, MPFR_RNDN);
   if (mpfr_get_prec(&out.m) >= static_cast<mpfr_prec_t>(sizeof(double) * CHAR_BIT)) {
-    auto p = out.m;
+    typename remove_pointer<mpfr_ptr>::type p = out.m;
 
     size_t full_n_limb = prec_to_nlimb(mpfr_get_prec(&out.m));
     size_t actual_n_limb = prec_to_nlimb(sizeof(double) * CHAR_BIT);
@@ -384,8 +361,10 @@ inline void write_to_ostream(
   format[pos++] = '.';
 
   bool hf = _::has_flag(out, ostr::scientific) and _::has_flag(out, ostr::fixed);
-  long precision = hf ? (mpfr_get_prec(&x_.m) / 4) : static_cast<long>(out.precision());
-  std::snprintf(format + pos, sizeof(format) - pos, "%ld", precision);
+  long precision = hf ? mpfr_get_prec(&x_.m) / 4 : static_cast<long>(out.precision());
+  if (precision > 0) {
+    std::snprintf(format + pos, sizeof(format) - pos, "%ld", precision);
+  }
   pos = std::strlen(format);
   format[pos++] = 'R';
 
@@ -459,35 +438,32 @@ inline void write_to_ostream(
 struct impl_access {
 
   template <precision_t P>
-  [[nodiscard]] static auto mantissa_mut(mp_float_t<P>& x)
+  static auto mantissa_mut(mp_float_t<P>& x)
       -> mp_limb_t (&)[prec_to_nlimb(static_cast<std::uint64_t>(P))] {
     return x.m_mantissa;
   }
   template <precision_t P>
-  [[nodiscard]] static auto mantissa_const(mp_float_t<P> const& x) -> mp_limb_t
+  static auto mantissa_const(mp_float_t<P> const& x) -> mp_limb_t
       const (&)[prec_to_nlimb(static_cast<std::uint64_t>(P))] {
     return x.m_mantissa;
   }
 
-  template <precision_t P>
-  [[nodiscard]] static auto actual_prec_sign_mut(mp_float_t<P>& x) -> mpfr_prec_t& {
+  template <precision_t P> static auto actual_prec_sign_mut(mp_float_t<P>& x) -> mpfr_prec_t& {
     return x.m_actual_prec_sign;
   }
   template <precision_t P>
-  [[nodiscard]] static auto actual_prec_sign_const(mp_float_t<P> const& x) -> mpfr_prec_t {
+  static auto actual_prec_sign_const(mp_float_t<P> const& x) -> mpfr_prec_t {
     return x.m_actual_prec_sign;
   }
 
-  template <precision_t P>[[nodiscard]] static auto exp_mut(mp_float_t<P>& x) -> mpfr_exp_t& {
+  template <precision_t P> static auto exp_mut(mp_float_t<P>& x) -> mpfr_exp_t& {
     return x.m_exponent;
   }
-  template <precision_t P>
-  [[nodiscard]] static auto exp_const(mp_float_t<P> const& x) -> mpfr_exp_t {
+  template <precision_t P> static auto exp_const(mp_float_t<P> const& x) -> mpfr_exp_t {
     return x.m_exponent;
   }
 
-  template <precision_t P>
-  [[nodiscard]] static auto mpfr_cref(mp_float_t<P> const& x) -> mpfr_cref_t {
+  template <precision_t P> static auto mpfr_cref(mp_float_t<P> const& x) -> mpfr_cref_t {
     mpfr_cref_t out{};
     mpfr_sign_t sign = (x.m_actual_prec_sign < 0) ? -1 : 1;
 
@@ -509,18 +485,7 @@ struct impl_access {
     return out;
   }
 
-  template <precision_t P>
-  [[nodiscard]] static auto mpfr_setter(mp_float_t<P>& x) -> mpfr_raii_setter_t {
-    return {
-        mp_float_t<P>::precision,
-        static_cast<mp_limb_t*>(x.m_mantissa),
-        &x.m_exponent,
-        &x.m_actual_prec_sign,
-    };
-  }
-
-  template <precision_t P>
-  [[nodiscard]] static auto mpfr_inout_setter(mp_float_t<P>& x) -> mpfr_raii_inout_t {
+  template <precision_t P> static auto mpfr_setter(mp_float_t<P>& x) -> mpfr_raii_setter_t {
     return {
         mp_float_t<P>::precision,
         static_cast<mp_limb_t*>(x.m_mantissa),
@@ -559,30 +524,18 @@ auto apply_binary_op(
 }
 
 template <typename T> auto to_lvalue(T&& arg) -> T& { return arg; }
-template <parameter_type T> struct into_mpfr;
+template <bool Is_Const> struct into_mpfr;
 
-template <> struct into_mpfr<in> {
+template <> struct into_mpfr<true> {
   static auto get_pointer(mpfr_cref_t&& p) -> mpfr_srcptr { return &p.m; }
   template <precision_t P> static auto get_mpfr(mp_float_t<P> const& x) -> mpfr_cref_t {
     return impl_access::mpfr_cref(x);
   }
 };
 
-template <> struct into_mpfr<out> {
+template <> struct into_mpfr<false> {
   static auto get_pointer(mpfr_raii_setter_t&& p) -> mpfr_ptr { return &p.m; }
   template <precision_t P> static auto get_mpfr(mp_float_t<P>& x) -> mpfr_raii_setter_t {
-    return {
-        static_cast<mpfr_prec_t>(P),
-        static_cast<mp_limb_t*>(impl_access::mantissa_mut(x)),
-        &impl_access::exp_mut(x),
-        &impl_access::actual_prec_sign_mut(x),
-    };
-  }
-};
-
-template <> struct into_mpfr<inout> {
-  static auto get_pointer(mpfr_raii_inout_t&& p) -> mpfr_ptr { return &p.m; }
-  template <precision_t P> static auto get_mpfr(mp_float_t<P>& x) -> mpfr_raii_inout_t {
     return {
         static_cast<mpfr_prec_t>(P),
         static_cast<mp_limb_t*>(impl_access::mantissa_mut(x)),

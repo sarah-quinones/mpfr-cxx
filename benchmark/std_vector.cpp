@@ -1,4 +1,3 @@
-#define CXX_MPFR_DEBUG 0
 #include "mpfr/mpfr.hpp"
 
 #include <vector>
@@ -45,7 +44,7 @@ template <typename T> void bench_grow() {
 auto main() -> int {
 
   auto bench = ankerl::nanobench::Bench();
-  bench.minEpochTime(std::chrono::nanoseconds{100'000'000ULL});
+  bench.minEpochTime(std::chrono::milliseconds{100UL});
 
   bench.run("create", bench_create<scalar_t>);
   bench.run("create (boost)", bench_create<bscalar_t>);
