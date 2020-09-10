@@ -4,6 +4,11 @@
 #include "mpfr/detail/handle_as_mpfr.hpp"
 #include "mpfr/detail/prologue.hpp"
 
+#if MPFR_CXX_HAS_MATH_BUILTINS == 0
+// for std::{fabs,frexp,signbit}
+#include <cmath>
+#endif
+
 namespace mpfr {
 
 /// Stack allocated fixed precision floating point.\n
