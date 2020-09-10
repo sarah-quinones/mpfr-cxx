@@ -6,10 +6,98 @@
 
 namespace mpfr {
 
+namespace _ {
+template <precision_t P> auto pi_impl() -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    mpfr_raii_setter_t&& g = impl_access::mpfr_setter(out);
+    mpfr_const_pi(&g.m, MPFR_RNDN);
+  }
+  return out;
+}
+
+} // namespace _
+
 /// \return `true` if the argument is negative, `false` otherwise.\n
 /// If the argument is a NaN, detects whether the sign bit is set.
 template <precision_t P> auto signbit(mp_float_t<P> const& arg) noexcept -> bool {
   return _::impl_access::actual_prec_sign_const(arg) < 0;
+}
+
+/// \return The `a` with the sign copied from `b`.
+template <precision_t P>
+auto copysign(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
+  mp_float_t<P> out = a;
+  auto& prec_sign = _::impl_access::actual_prec_sign_mut(a);
+  prec_sign = _::prec_negate_if(prec_sign, mpfr::signbit(a) != mpfr::signbit(b));
+  return out;
+}
+
+/// Decomposes `arg` into a normalized fraction and a power of two.
+/// \return Normalized fraction. The power of two exponent is stored in `*exp`.
+template <precision_t P>
+auto frexp(mp_float_t<P> const& arg, mpfr_prec_t* exp) noexcept -> mp_float_t<P> {
+  mp_float_t<P> out = arg;
+  {
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    mpfr_frexp(exp, &g.m, &x.m, _::get_rnd());
+  }
+  return out;
+}
+
+/// \return `arg` multiplied by two to the power of `exp`
+template <precision_t P>
+auto ldexp(mp_float_t<P> const& arg, mpfr_prec_t exp) noexcept -> mp_float_t<P> {
+  mp_float_t<P> out = arg;
+  {
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    mpfr_mul_2si(&g.m, &x.m, exp, _::get_rnd());
+  }
+  return out;
+}
+
+/// \return The remainder of `a` divided by `b`, when the quotient is rounded toward zero.
+/// If `quotient_ptr` is not null, the least significant bits of the quotient are stored in
+/// `*quotient_ptr`.
+template <precision_t P>
+auto fmod(mp_float_t<P> const& a, mp_float_t<P> const& b, long* quotient_ptr = nullptr) noexcept
+    -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(a);
+    _::mpfr_cref_t&& y = _::impl_access::mpfr_cref(b);
+    if (quotient_ptr == nullptr) {
+      mpfr_fmod(&g.m, &x.m, &y.m, _::get_rnd());
+    } else {
+      mpfr_fmodquo(&g.m, quotient_ptr, &x.m, &y.m, _::get_rnd());
+    }
+  }
+  return out;
+}
+
+/// \return The remainder of `a` divided by `b`, when the quotient is rounded to the nearest
+/// integer.
+/// If `quotient_ptr` is not null, the least significant bits of the quotient are stored in
+/// `*quotient_ptr`.
+template <precision_t P>
+auto remainder(
+    mp_float_t<P> const& a, mp_float_t<P> const& b, long* quotient_ptr = nullptr) noexcept
+    -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(a);
+    _::mpfr_cref_t&& y = _::impl_access::mpfr_cref(b);
+    if (quotient_ptr == nullptr) {
+      mpfr_remainder(&g.m, &x.m, &y.m, _::get_rnd());
+    } else {
+      mpfr_remquo(&g.m, quotient_ptr, &x.m, &y.m, _::get_rnd());
+    }
+  }
+  return out;
 }
 
 /// \return `true` if the argument is infinite, `false` otherwise.
@@ -49,35 +137,41 @@ auto pow(mp_float_t<P> const& base, mp_float_t<P> const& exponent) noexcept -> m
   return _::apply_binary_op(base, exponent, mpfr_pow);
 }
 
-/// If `sin_dest` and `cos_dest` alias, the behavior is undefined.
-/// @param[in]  arg      Argument at which the sine and cosine are to be computed.
-/// @param[out] sin_dest Reference to the number that will be set to the sine value.
-/// @param[out] cos_dest Reference to the number that will be set to the cosine value.
-template <precision_t P>
-void sincos(mp_float_t<P> const& arg, mp_float_t<P>& sin_dest, mp_float_t<P>& cos_dest) noexcept {
-  if (&sin_dest == &cos_dest) {
-    _::crash_with_message("sin_dest and cos_dest cannot alias.");
-  }
+/// Pair of the sine and cosine.
+template <precision_t P> struct sin_cos_result_t {
+  mp_float_t<P> sin;
+  mp_float_t<P> cos;
+};
+
+/// Pair of the hyperbolic sine and cosine.
+template <precision_t P> struct sinh_cosh_result_t {
+  mp_float_t<P> sinh;
+  mp_float_t<P> cosh;
+};
+
+/// \return Sine and cosine of the argument.
+template <precision_t P> auto sin_cos(mp_float_t<P> const& arg) noexcept -> sin_cos_result_t<P> {
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
-  _::mpfr_raii_setter_t sg = _::impl_access::mpfr_setter(sin_dest);
-  _::mpfr_raii_setter_t cg = _::impl_access::mpfr_setter(cos_dest);
-  mpfr_sin_cos(&sg.m, &cg.m, &x_.m, MPFR_RNDN);
+  sin_cos_result_t<P> out;
+  {
+    _::mpfr_raii_setter_t&& sg = _::impl_access::mpfr_setter(out.sin);
+    _::mpfr_raii_setter_t&& cg = _::impl_access::mpfr_setter(out.cos);
+    mpfr_sin_cos(&sg.m, &cg.m, &x_.m, _::get_rnd());
+  }
+  return out;
 }
 
-/// If `sinh_dest` and `cosh_dest` alias, the behavior is undefined.
-/// @param[in]  arg       Argument at which the hyperbolic sine and cosine are to be computed.
-/// @param[out] sinh_dest Reference to the number that will be set to the hyperbolic sine value.
-/// @param[out] cosh_dest Reference to the number that will be set to the hyperbolic cosine value.
+/// \return Hyperbolic sine and cosine of the argument.
 template <precision_t P>
-void sinhcosh(
-    mp_float_t<P> const& arg, mp_float_t<P>& sinh_dest, mp_float_t<P>& cosh_dest) noexcept {
-  if (&sinh_dest == &cosh_dest) {
-    _::crash_with_message("sinh_dest and cosh_dest cannot alias.");
-  }
+auto sinh_cosh(mp_float_t<P> const& arg) noexcept -> sinh_cosh_result_t<P> {
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
-  _::mpfr_raii_setter_t sg = _::impl_access::mpfr_setter(sinh_dest);
-  _::mpfr_raii_setter_t cg = _::impl_access::mpfr_setter(cosh_dest);
-  mpfr_sinh_cosh(&sg.m, &cg.m, &x_.m, MPFR_RNDN);
+  sinh_cosh_result_t<P> out;
+  {
+    _::mpfr_raii_setter_t&& sg = _::impl_access::mpfr_setter(out.sinh);
+    _::mpfr_raii_setter_t&& cg = _::impl_access::mpfr_setter(out.cosh);
+    mpfr_sinh_cosh(&sg.m, &cg.m, &x_.m, _::get_rnd());
+  }
+  return out;
 }
 
 /// \return Arc tangent of y/x in the correct quadrant depending on the signs of the arguments.
@@ -89,7 +183,7 @@ auto atan2(mp_float_t<P> const& y, mp_float_t<P> const& x) noexcept -> mp_float_
     _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(y);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
 
-    mpfr_atan2(&g.m, &y_.m, &x_.m, MPFR_RNDN);
+    mpfr_atan2(&g.m, &y_.m, &x_.m, _::get_rnd());
   }
   return out;
 }
@@ -103,7 +197,7 @@ auto hypot(mp_float_t<P> const& x, mp_float_t<P> const& y) noexcept -> mp_float_
     _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(y);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
 
-    mpfr_hypot(&g.m, &x_.m, &y_.m, MPFR_RNDN);
+    mpfr_hypot(&g.m, &x_.m, &y_.m, _::get_rnd());
   }
   return out;
 }
@@ -231,6 +325,99 @@ template <precision_t P> auto log10(mp_float_t<P> const& arg) noexcept -> mp_flo
 /// \return Logarithm to base \f$e\f$ of \f$1\f$ plus the argument \f$:=\log_e(1 + \text{arg})\f$.
 template <precision_t P> auto log1p(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   return _::apply_unary_op(arg, mpfr_log1p);
+}
+
+/// \return Error function. \f\[\text{erf}(x) = \frac{2}{\sqrt\pi}\int_0^x e^{-t^2}\mathrm{d}t\f\]
+template <precision_t P> auto erf(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return _::apply_unary_op(arg, mpfr_erf);
+}
+
+/// \return Complementary error function.
+/// \f\[\text{erfc}(x) = 1 - \frac{2}{\sqrt\pi}\int_0^x e^{-t^2}\mathrm{d}t\f\]
+template <precision_t P> auto erfc(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return _::apply_unary_op(arg, mpfr_erfc);
+}
+
+/// \return Gamma function. \f\[\Gamma(x) = \int_0^\infty t^{x-1}e^{-t}\mathrm{d}t\f\]
+template <precision_t P> auto tgamma(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return _::apply_unary_op(arg, mpfr_gamma);
+}
+
+/// \return Natural log of the absolute value of the gamma function.
+template <precision_t P> auto lgamma(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return _::apply_unary_op(arg, mpfr_lgamma);
+}
+
+/// \return Beta function. \f\[\text{B}(x, y) = \int_0^1 t^{x-1}(1-t)^{y-1} \mathrm{d}t\f\]
+template <precision_t P>
+auto beta(mp_float_t<P> const& x, mp_float_t<P> const& y) noexcept -> mp_float_t<P> {
+  return _::apply_binary_op(x, y, mpfr_beta);
+}
+
+/// \return Exponential integral. \f\[\text{Ei}(x) = \int_{-x}^\infty
+/// \frac{e^{-t}}{t}\mathrm{d}t\f\]
+template <precision_t P> auto expint(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return _::apply_unary_op(arg, mpfr_eint);
+}
+
+/// \return Zeta function.
+template <precision_t P> auto riemann_zeta(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return _::apply_unary_op(arg, mpfr_zeta);
+}
+
+/// \return Nearby int using the current rounding mode.
+template <precision_t P> auto rint(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return _::apply_unary_op(arg, mpfr_rint);
+}
+
+/// \return Next higher or equal representable integer.
+template <precision_t P> auto ceil(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    mpfr_ceil(&g.m, &x.m);
+  }
+  return out;
+}
+
+/// \return \f$\pi\f$ constant.
+template <precision_t P> auto pi_c() noexcept -> mp_float_t<P> const& {
+  static mp_float_t<P> const pi = _::pi_impl<P>();
+  return pi;
+}
+
+/// \return Next lower or equal representable integer.
+template <precision_t P> auto floor(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    mpfr_floor(&g.m, &x.m);
+  }
+  return out;
+}
+
+/// \return Nearest representable integer, rounding away from zero.
+template <precision_t P> auto round(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    mpfr_round(&g.m, &x.m);
+  }
+  return out;
+}
+
+/// \return Nearest representable integer, rounding toward zero.
+template <precision_t P> auto trunc(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    mpfr_trunc(&g.m, &x.m);
+  }
+  return out;
 }
 
 } // namespace mpfr

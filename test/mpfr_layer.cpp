@@ -8,7 +8,7 @@
 template <typename Enable, typename... Args> struct valid_arg_checker_impl : std::false_type {};
 template <typename... Args>
 struct valid_arg_checker_impl<
-    std::void_t<decltype(mpfr::handle_as_mpfr_t(std::declval<Args>()...))>,
+    typename mpfr::_::void_impl<decltype(mpfr::handle_as_mpfr_t(std::declval<Args>()...))>::type,
     Args...> : std::true_type {};
 
 template <typename... Args>

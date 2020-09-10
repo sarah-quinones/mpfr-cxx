@@ -3,6 +3,12 @@
 
 #include "mpfr/enums.hpp"
 #include "mpfr/detail/prologue.hpp"
+
+#include <exception>
+#include <limits>
+#include <iosfwd>
+#include <utility>
+#include <type_traits>
 #include <initializer_list>
 
 namespace mpfr {
@@ -196,7 +202,9 @@ struct mpfr_cref_t {
   typename remove_pointer<mpfr_ptr>::type m;
 
   void flip_sign_if(bool cond) { cond ? (void)(MPFR_SIGN(&m) *= -1) : (void)0; }
-  auto pow2_exponent() const -> mpfr_exp_t { return mpfr_custom_get_exp(&m) - 1; }
+  [[MPFR_CXX_NODISCARD]] auto pow2_exponent() const -> mpfr_exp_t {
+    return mpfr_custom_get_exp(&m) - 1;
+  }
   void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
@@ -264,7 +272,9 @@ struct mpfr_raii_setter_t /* NOLINT */ {
   }
 
   void flip_sign_if(bool cond) { cond ? (void)(MPFR_SIGN(&m) *= -1) : (void)0; }
-  auto pow2_exponent() const -> mpfr_exp_t { return mpfr_custom_get_exp(&m) - 1; }
+  [[MPFR_CXX_NODISCARD]] auto pow2_exponent() const -> mpfr_exp_t {
+    return mpfr_custom_get_exp(&m) - 1;
+  }
   void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
@@ -290,8 +300,24 @@ HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2(
   return false;
 }
 
+inline auto get_rnd() -> mpfr_rnd_t {
+  auto rnd = std::fegetround();
+  switch (rnd) {
+  case FE_TONEAREST:
+    return MPFR_RNDN;
+  case FE_TOWARDZERO:
+    return MPFR_RNDZ;
+  case FE_DOWNWARD:
+    return MPFR_RNDD;
+  case FE_UPWARD:
+    return MPFR_RNDU;
+  default:
+    return MPFR_RNDN;
+  }
+}
+
 inline void set_d(mpfr_raii_setter_t& out, double a) {
-  mpfr_set_d(&out.m, a, MPFR_RNDN);
+  mpfr_set_d(&out.m, a, _::get_rnd());
   if (mpfr_get_prec(&out.m) >= static_cast<mpfr_prec_t>(sizeof(double) * CHAR_BIT)) {
     typename remove_pointer<mpfr_ptr>::type p = out.m;
 
@@ -308,7 +334,7 @@ inline void set_d(mpfr_raii_setter_t& out, double a) {
 }
 
 inline void set_add(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
-  mpfr_add(&out.m, &a.m, &b.m, MPFR_RNDN);
+  mpfr_add(&out.m, &a.m, &b.m, _::get_rnd());
 }
 
 inline void set_sub(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
@@ -320,14 +346,14 @@ inline void set_mul(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
   if ((mpfr_custom_get_significand(&a.m) == mpfr_custom_get_significand(&b.m)) and
       (mpfr_custom_get_exp(&a.m) == mpfr_custom_get_exp(&b.m)) and
       (mpfr_signbit(&a.m) == mpfr_signbit(&b.m)) and (mpfr_get_prec(&a.m) == mpfr_get_prec(&b.m))) {
-    mpfr_sqr(&out.m, &a.m, MPFR_RNDN);
+    mpfr_sqr(&out.m, &a.m, _::get_rnd());
     return;
   }
-  mpfr_mul(&out.m, &a.m, &b.m, MPFR_RNDN);
+  mpfr_mul(&out.m, &a.m, &b.m, _::get_rnd());
 }
 
 inline void set_div(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
-  mpfr_div(&out.m, &a.m, &b.m, MPFR_RNDN);
+  mpfr_div(&out.m, &a.m, &b.m, _::get_rnd());
 }
 
 struct heap_str_t /* NOLINT(cppcoreguidelines-special-member-functions) */ {
@@ -484,7 +510,7 @@ struct impl_access {
       mpfr_custom_init_set(&out.m, sign * MPFR_ZERO_KIND, x.m_exponent, 1, x.m_mantissa);
       return out;
     }
-    constexpr size_t full_n_limb = prec_to_nlimb(mp_float_t<P>::precision);
+    constexpr size_t full_n_limb = prec_to_nlimb(mp_float_t<P>::precision_mpfr);
     size_t actual_n_limb = prec_to_nlimb(actual_prec);
     out.m = {
         actual_prec,
@@ -498,7 +524,7 @@ struct impl_access {
 
   template <precision_t P> static auto mpfr_setter(mp_float_t<P>& x) -> mpfr_raii_setter_t {
     return {
-        mp_float_t<P>::precision,
+        mp_float_t<P>::precision_mpfr,
         static_cast<mp_limb_t*>(x.m_mantissa),
         &x.m_exponent,
         &x.m_actual_prec_sign,
@@ -528,7 +554,7 @@ auto apply_unary_op(mp_float_t<P> const& x, int (*op)(mpfr_ptr, mpfr_srcptr, mpf
   {
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(x);
-    op(&g.m, &x_.m, MPFR_RNDN);
+    op(&g.m, &x_.m, _::get_rnd());
   }
   return out;
 }
@@ -544,7 +570,7 @@ auto apply_binary_op(
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(x);
     _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(y);
-    op(&g.m, &x_.m, &y_.m, MPFR_RNDN);
+    op(&g.m, &x_.m, &y_.m, _::get_rnd());
   }
   return out;
 }

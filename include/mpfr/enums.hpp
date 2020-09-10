@@ -2,15 +2,11 @@
 #define ENUMS_HPP_4PXFRLJ0
 
 #include <climits>
-#include <cmath>
 #include <cstdio>
 #include <cstring>
-#include <exception>
-#include <limits>
+#include <cfenv>
 #include <cstdint>
-#include <iosfwd>
-#include <utility>
-#include <type_traits>
+#include <cmath>
 
 #include <mpfr.h>
 

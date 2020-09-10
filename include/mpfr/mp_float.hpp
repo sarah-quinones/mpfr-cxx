@@ -9,6 +9,7 @@ namespace mpfr {
 /// Stack allocated fixed precision floating point.\n
 /// Arithmetic and comparison operators follow IEEE 754 rules.
 template <precision_t Precision> struct mp_float_t {
+  static constexpr precision_t precision = Precision;
   static_assert(static_cast<mpfr_prec_t>(Precision) > 0, "precision must be positive.");
 
   /// Default/Zero initialization sets the number to positive zero.
@@ -56,7 +57,7 @@ template <precision_t Precision> struct mp_float_t {
   /// \n
   [[MPFR_CXX_NODISCARD]] explicit operator double() const noexcept {
     _::mpfr_cref_t m = _::impl_access::mpfr_cref(*this);
-    return mpfr_get_d(&m.m, MPFR_RNDN);
+    return mpfr_get_d(&m.m, _::get_rnd());
   }
   /** @name Arithmetic operators
    */
@@ -209,7 +210,7 @@ template <precision_t Precision> struct mp_float_t {
   friend auto operator<<(std::basic_ostream<CharT, Traits>& out, mp_float_t const& a)
       -> std::basic_ostream<CharT, Traits>& {
     constexpr std::size_t stack_bufsize =
-        _::digits2_to_10(static_cast<std::size_t>(precision) + 64);
+        _::digits2_to_10(static_cast<std::size_t>(precision_mpfr) + 64);
     char stack_buffer[stack_bufsize];
     _::write_to_ostream(out, _::impl_access::mpfr_cref(a), stack_buffer, stack_bufsize);
     return out;
@@ -239,7 +240,7 @@ private:
     _::mpfr_cref_t b_ = _::impl_access::mpfr_cref(b);
     return comp(&a_.m, &b_.m) != 0;
   }
-  static constexpr mpfr_prec_t precision = static_cast<mpfr_prec_t>(Precision);
+  static constexpr mpfr_prec_t precision_mpfr = static_cast<mpfr_prec_t>(Precision);
 
   mp_limb_t m_mantissa[_::prec_to_nlimb(static_cast<std::uint64_t>(Precision))]{};
   mpfr_exp_t m_exponent{};
@@ -317,21 +318,30 @@ handle_as_mpfr_t(Fn&& fn, Args&&... args) // NOLINT(modernize-use-trailing-retur
 #undef callable_return_type
 } // namespace mpfr
 
-// stl numeric_limits
+#if defined(min) or defined(max)
+HEDLEY_WARNING("min/max macros definitions are undone.")
+#undef min
+#undef max
+#endif
 namespace std {
+/// Specialization of the standard library numeric limits
 template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Precision>> {
   using T = mpfr::mp_float_t<Precision>;
   static constexpr bool is_specialized = true;
-  static auto(max)() noexcept -> T {
+
+  /// Largest finite number.
+  static auto max() noexcept -> T {
     T out = one_m_eps_impl();
     mpfr::_::impl_access::exp_mut(out) = mpfr_get_emax();
     return out;
   }
-  static auto(min)() noexcept -> T {
+  /// Smallest strictly positive number.
+  static auto min() noexcept -> T {
     T out = 0.5L;
     mpfr::_::impl_access::exp_mut(out) = mpfr_get_emin();
     return out;
   }
+  /// Smallest finite number.
   static auto lowest() noexcept -> T { return -(max)(); }
 
   static constexpr int digits = static_cast<int>(Precision);
@@ -342,11 +352,15 @@ template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Pr
   static constexpr bool is_integer = false;
   static constexpr bool is_exact = true;
   static constexpr int radix = 2;
+  /// Distance between 1 and the smallest number larger than 1.
   static auto epsilon() noexcept -> T {
     static auto eps = epsilon_impl();
     return eps;
   }
-  static constexpr auto round_error() noexcept -> T { return T{0.5L}; }
+  /// Largest possible error in ULP.
+  static constexpr auto round_error() noexcept -> T {
+    return T{mpfr::_::get_rnd() == MPFR_RNDN ? 0.5 : 1.0};
+  }
 
   static constexpr int min_exponent = (MPFR_EMIN_DEFAULT >= INT_MIN) ? MPFR_EMIN_DEFAULT : INT_MIN;
   static constexpr int min_exponent10 =
@@ -360,8 +374,11 @@ template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Pr
   static constexpr bool has_signaling_NaN = true;
   static constexpr float_denorm_style has_denorm = denorm_absent;
   static constexpr bool has_denorm_loss = false;
+  /// Positive infinity.
   static auto infinity() noexcept -> T { return T{1.0L} / T{0.0L}; }
+  /// Not a number.
   static auto quiet_NaN() noexcept -> T { return T{0.0L} / T{0.0L}; }
+  /// Not a number.
   static constexpr auto signaling_NaN() noexcept -> T { return quiet_NaN(); }
   static constexpr auto denorm_min() noexcept -> T { return T{}; }
 
@@ -374,16 +391,16 @@ template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Pr
   static constexpr float_round_style round_style = round_toward_zero;
 
 private:
-  static auto epsilon_impl() -> T {
+  static auto epsilon_impl() noexcept -> T {
     T x = 1;
     {
       mpfr::_::mpfr_raii_setter_t&& g = mpfr::_::impl_access::mpfr_setter(x);
       mpfr_nextabove(&g.m);
-      mpfr_sub_ui(&g.m, &g.m, 1, MPFR_RNDN);
+      mpfr_sub_ui(&g.m, &g.m, 1, mpfr::_::get_rnd());
     }
     return x;
   }
-  static auto one_m_eps_impl() -> T {
+  static auto one_m_eps_impl() noexcept -> T {
     T x = 1;
     {
       mpfr::_::mpfr_raii_setter_t&& g = mpfr::_::impl_access::mpfr_setter(x);

@@ -87,6 +87,9 @@ DOCTEST_TEST_CASE("math functions") {
   DOCTEST_CHECK(fabs(x) == x);
   DOCTEST_CHECK(fabs(-x) == x);
 
+  DOCTEST_CHECK(fabs(sin(mpfr::pi_c<scalar_t::precision>())) < 1e-99);
+  DOCTEST_CHECK(fabs(cos(mpfr::pi_c<scalar_t::precision>()) + 1) < 1e-99);
+
   DOCTEST_CHECK(fabs(cos(x) * cos(x) + sin(x) * sin(x) - 1) < 1e-99);
   DOCTEST_CHECK(fabs(sin(x) / cos(x) - tan(x)) < 1e-99);
   DOCTEST_CHECK(fabs(cosh(x) * cosh(x) - sinh(x) * sinh(x) - 1) < 1e-99);
@@ -96,18 +99,14 @@ DOCTEST_TEST_CASE("math functions") {
   DOCTEST_CHECK(fabs(acos(cos(x)) - x) < 1e-99);
 
   {
-    scalar_t s;
-    scalar_t c;
-    sincos(x, s, c);
-    DOCTEST_CHECK(s == sin(x));
-    DOCTEST_CHECK(c == cos(x));
+    auto sc = sin_cos(x);
+    DOCTEST_CHECK(sc.sin == sin(x));
+    DOCTEST_CHECK(sc.cos == cos(x));
   }
   {
-    scalar_t s;
-    scalar_t c;
-    sinhcosh(x, s, c);
-    DOCTEST_CHECK(s == sinh(x));
-    DOCTEST_CHECK(c == cosh(x));
+    auto sc = sinh_cosh(x);
+    DOCTEST_CHECK(sc.sinh == sinh(x));
+    DOCTEST_CHECK(sc.cosh == cosh(x));
   }
 
   DOCTEST_CHECK(pow(x, scalar_t{2}) == x * x);
@@ -129,4 +128,24 @@ DOCTEST_TEST_CASE("math functions") {
   DOCTEST_CHECK(fabs(cos(atan2(-y, -x) - atan(y / x)) + 1) < 1e-99);
   DOCTEST_CHECK(fabs(sin(atan2(y, -x) + atan2(y, x))) < 1e-99);
   DOCTEST_CHECK(fabs(cos(atan2(y, -x) + atan2(y, x)) + 1) < 1e-99);
+
+  DOCTEST_CHECK(ceil(x) == 2);
+  DOCTEST_CHECK(floor(x) == 1);
+  DOCTEST_CHECK(round(x) == 1);
+  DOCTEST_CHECK(trunc(x) == 1);
+  DOCTEST_CHECK(round(1.5) == 2);
+  DOCTEST_CHECK(trunc(1.5) == 1);
+  DOCTEST_CHECK(round(-1.5) == -2);
+  DOCTEST_CHECK(trunc(-1.5) == -1);
+
+  std::fesetround(FE_UPWARD);
+  DOCTEST_CHECK(rint(x) == 2);
+  std::fesetround(FE_DOWNWARD);
+  DOCTEST_CHECK(rint(x) == 1);
+  std::fesetround(FE_TOWARDZERO);
+  DOCTEST_CHECK(rint(x) == 1);
+  DOCTEST_CHECK(rint(1.5) == 1);
+  std::fesetround(FE_TONEAREST);
+  DOCTEST_CHECK(rint(x) == 1);
+  DOCTEST_CHECK(rint(1.5) == 2);
 }
