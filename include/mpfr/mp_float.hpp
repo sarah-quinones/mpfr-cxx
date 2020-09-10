@@ -29,9 +29,16 @@ template <precision_t Precision> struct mp_float_t {
   /// \n
   inline auto operator=(double a) noexcept -> mp_float_t& {
     int exponent{};
-    double normalized = ::fabs(::frexp(a, &exponent));
+
+#if MPFR_CXX_HAS_MATH_BUILTINS == 1
+    double normalized = __builtin_fabs(__builtin_frexp(a, &exponent));
+    if (normalized == 0.5) {
+      bool signbit = __builtin_signbit(a) != 0;
+#else
+    double normalized = std::fabs(std::frexp(a, &exponent));
     if (normalized == 0.5) {
       bool signbit = std::signbit(a);
+#endif
 
       // a is a power of two
       // a = signbit * 2^(exp-1)
@@ -245,7 +252,7 @@ private:
   mp_limb_t m_mantissa[_::prec_to_nlimb(static_cast<std::uint64_t>(Precision))]{};
   mpfr_exp_t m_exponent{};
   mpfr_exp_t m_actual_prec_sign{};
-};
+}; // namespace mpfr
 
 #if defined(callable_return_type) or defined(callable_is_noexcept)
 #error "reserved macro is already defined"

@@ -7,8 +7,6 @@
 #include <exception>
 #include <limits>
 #include <iosfwd>
-#include <utility>
-#include <type_traits>
 #include <initializer_list>
 
 namespace mpfr {
@@ -87,9 +85,11 @@ template <typename T> struct void_impl { using type = void; };
 template <typename T> struct remove_pointer;
 template <typename T> struct remove_pointer<T*> { using type = T; };
 
-template <typename T> struct is_mp_float : std::false_type {};
-template <precision_t P> struct is_mp_float<mp_float_t<P>> : std::true_type {};
-template <precision_t P> struct is_mp_float<mp_float_t<P> const> : std::true_type {};
+template <typename T> struct is_mp_float { static constexpr bool value = false; };
+template <precision_t P> struct is_mp_float<mp_float_t<P>> { static constexpr bool value = true; };
+template <precision_t P> struct is_mp_float<mp_float_t<P> const> {
+  static constexpr bool value = true;
+};
 
 template <typename T> struct to_mpfr_ptr { using type = void; };
 template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>> { using type = mpfr_ptr; };
@@ -97,7 +97,9 @@ template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>&> { using type = mpfr_
 template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const> { using type = mpfr_srcptr; };
 template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const&> { using type = mpfr_srcptr; };
 
-template <bool Cond, typename T> using enable_if_t = typename std::enable_if<Cond, T>::type;
+template <bool Cond, typename T> struct enable_if { using type = T; };
+template <typename T> struct enable_if<false, T> {};
+template <bool Cond, typename T> using enable_if_t = typename mpfr::_::enable_if<Cond, T>::type;
 
 template <typename Enable, typename T, typename... Args> struct invocable_impl {
   static constexpr bool value = false;

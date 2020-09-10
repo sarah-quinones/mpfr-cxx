@@ -6,12 +6,16 @@
 #include <cstring>
 #include <cfenv>
 #include <cstdint>
-#include <cmath>
 
 #include <mpfr.h>
 
 #include "mpfr/detail/hedley.h"
 #include "mpfr/detail/prologue.hpp"
+
+#if MPFR_CXX_HAS_MATH_BUILTINS == 0
+// for std::{fabs,frexp,signbit}
+#include <cmath>
+#endif
 
 namespace mpfr {
 

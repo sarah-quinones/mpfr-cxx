@@ -20,3 +20,14 @@
 #endif
 
 #define MPFR_CXX_NODISCARD HEDLEY_DIAGNOSTIC_DISABLE_CPP98_COMPAT_WRAP_(nodiscard)
+
+#if HEDLEY_HAS_BUILTIN(__builtin_fabs) and HEDLEY_HAS_BUILTIN(__builtin_frexp) and                 \
+    HEDLEY_HAS_BUILTIN(__builtin_signbit)
+
+#define MPFR_CXX_HAS_MATH_BUILTINS 1
+
+#else
+
+#define MPFR_CXX_HAS_MATH_BUILTINS 0
+
+#endif
