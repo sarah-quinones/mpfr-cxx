@@ -105,3 +105,46 @@ DOCTEST_TEST_CASE("well-formedness static test") {
   static_assert(not valid_args<decltype(fn4)&, scalar_t>);
   static_assert(valid_args<decltype(fn4)&&, scalar_t>);
 }
+
+DOCTEST_TEST_CASE("const conversion test") {
+  scalar_t a = 2;
+  scalar_t b = 2;
+  scalar_t const c = 2;
+  static constexpr mpfr_prec_t prec = static_cast<mpfr_prec_t>(scalar_t::precision);
+
+  // unambiguous call operator
+  handle_as_mpfr_t(
+      [](mpfr_srcptr ap, mpfr_ptr bp, mpfr_srcptr cp) {
+        DOCTEST_CHECK(
+            mpfr_get_prec(ap) ==
+            1); // a is not const but ap is pointer to const. precision is shrunk
+
+        DOCTEST_CHECK(mpfr_get_prec(bp) == prec); // b is not const and bp is pointer to
+                                                  // mut. precision is preserved.
+
+        DOCTEST_CHECK(mpfr_get_prec(cp) == 1); // c is const. precision is shrunk
+      },
+      a,
+      b,
+      c);
+
+  // ambiguous call operator
+  handle_as_mpfr_t(
+      [](auto ap, mpfr_ptr bp, mpfr_srcptr cp, mpfr_srcptr ap2) {
+        DOCTEST_CHECK(
+            mpfr_get_prec(ap) == prec); // a is not const and ap is deduced. precision is preserved.
+
+        DOCTEST_CHECK(
+            mpfr_get_prec(ap2) == prec); // a is not const, ap2 is pointer to const, but ambiguous
+                                         // call operator. precision is preserved.
+
+        DOCTEST_CHECK(mpfr_get_prec(bp) == prec); // b is not const and bp is pointer to
+                                                  // mut. precision is preserved.
+
+        DOCTEST_CHECK(mpfr_get_prec(cp) == 1); // c is const. precision is shrunk
+      },
+      a,
+      b,
+      c,
+      a);
+}

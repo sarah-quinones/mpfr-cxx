@@ -80,54 +80,8 @@ constexpr auto prec_to_nlimb(mpfr_prec_t prec) -> uint64_t {
          sizeof(mp_limb_t);
 }
 
-template <typename T> struct void_impl { using type = void; };
-
 template <typename T> struct remove_pointer;
 template <typename T> struct remove_pointer<T*> { using type = T; };
-
-template <typename T> struct is_mp_float { static constexpr bool value = false; };
-template <precision_t P> struct is_mp_float<mp_float_t<P>> { static constexpr bool value = true; };
-template <precision_t P> struct is_mp_float<mp_float_t<P> const> {
-  static constexpr bool value = true;
-};
-
-template <typename T> struct to_mpfr_ptr { using type = void; };
-template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>> { using type = mpfr_ptr; };
-template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>&> { using type = mpfr_ptr; };
-template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const> { using type = mpfr_srcptr; };
-template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const&> { using type = mpfr_srcptr; };
-
-template <bool Cond, typename T> struct enable_if { using type = T; };
-template <typename T> struct enable_if<false, T> {};
-template <bool Cond, typename T> using enable_if_t = typename mpfr::_::enable_if<Cond, T>::type;
-
-template <typename Enable, typename T, typename... Args> struct invocable_impl {
-  static constexpr bool value = false;
-  static constexpr bool nothrow_value = false;
-  using type = void;
-};
-
-#define MPFR_CXX_DECLVAL(...) (*(static_cast < __VA_ARGS__ && (*)() noexcept > (nullptr)))()
-
-template <typename Fn, typename... Args>
-struct invocable_impl<
-    typename void_impl<decltype(MPFR_CXX_DECLVAL(Fn)(MPFR_CXX_DECLVAL(Args)...))>::type,
-    Fn,
-    Args...> {
-  static constexpr bool value = true;
-  static constexpr bool nothrow_value = noexcept(MPFR_CXX_DECLVAL(Fn)(MPFR_CXX_DECLVAL(Args)...));
-  using type = decltype(MPFR_CXX_DECLVAL(Fn)(MPFR_CXX_DECLVAL(Args)...));
-};
-
-#undef MPFR_CXX_DECLVAL
-
-template <typename Fn, typename... Args> struct is_invocable : invocable_impl<void, Fn, Args...> {};
-
-template <typename T> struct remove_reference { using type = T; };
-template <typename T> struct remove_reference<T&> { using type = T; };
-
-template <typename T> struct is_const { static constexpr bool value = false; };
-template <typename T> struct is_const<T const> { static constexpr bool value = true; };
 
 static constexpr uint64_t limb_pack_size = 32 / sizeof(mp_limb_t);
 static constexpr mp_limb_t zero_pack[limb_pack_size] = {};

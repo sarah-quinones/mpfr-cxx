@@ -1,7 +1,7 @@
 #ifndef MP_FLOAT_HPP_KC35IAEF
 #define MP_FLOAT_HPP_KC35IAEF
 
-#include "mpfr/detail/mpfr.hpp"
+#include "mpfr/detail/handle_as_mpfr.hpp"
 #include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {
@@ -254,40 +254,6 @@ private:
   mpfr_exp_t m_actual_prec_sign{};
 }; // namespace mpfr
 
-#if defined(callable_return_type) or defined(callable_is_noexcept)
-#error "reserved macro is already defined"
-#endif
-
-#define callable_is_noexcept                                                                       \
-  ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::nothrow_value
-
-#if defined(__cpp_concepts)
-
-#define callable_return_type                                                                       \
-  requires(                                                                                        \
-      (::mpfr::_::is_mp_float<typename ::std::remove_reference<Args>::type>::value and ...) and    \
-      ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::value) /**/     \
-      typename ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::type
-
-#elif __cplusplus >= 201703L
-
-#define callable_return_type                                                                       \
-  typename _::enable_if_t<                                                                         \
-      ((::mpfr::_::is_mp_float<typename ::std::remove_reference<Args>::type>::value and ...) and   \
-       ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::value),        \
-      typename ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>>::type
-
-#else
-
-#define callable_return_type                                                                       \
-  typename _::enable_if_t<                                                                         \
-      (::mpfr::_::all_of(                                                                          \
-           {::mpfr::_::is_mp_float<typename std::remove_reference<Args>::type>::value...}) and     \
-       ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>::value),          \
-      typename ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>>::type
-
-#endif
-
 /// Allows handling `mp_float_t<_>` objects through `mpfr_ptr`/`mpfr_srcptr` proxy objects.
 /// If after the callable is executed, one of the arguments has been modified by mpfr, the
 /// corresponding `mp_float_t<_>` object is set to the equivalent value.
@@ -310,15 +276,7 @@ template <typename Fn, typename... Args>
 callable_return_type
 handle_as_mpfr_t(Fn&& fn, Args&&... args) // NOLINT(modernize-use-trailing-return-type)
     noexcept(callable_is_noexcept) {
-  return static_cast<Fn&&>(fn)(_::into_mpfr<                                                 //
-                               std::is_const<                                                //
-                                   typename std::remove_reference<Args>::type                //
-                                   >::value                                                  //
-                               >::get_pointer(_::into_mpfr<                                  //
-                                              std::is_const<                                 //
-                                                  typename std::remove_reference<Args>::type //
-                                                  >::value                                   //
-                                              >::get_mpfr(args))...);
+  return _::impl_handle_as_mpfr_t<callable_is_noexcept>(static_cast<Fn&&>(fn), args...);
 }
 
 #undef callable_is_noexcept
