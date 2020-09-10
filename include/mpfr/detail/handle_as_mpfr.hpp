@@ -212,6 +212,7 @@ auto impl_handle_as_mpfr_t(Fn&& fn, Args&... args) noexcept(No_Except) ->
           >         //
       (static_cast<Fn&&>(fn), args...);
 }
+
 } // namespace _
 } // namespace mpfr
 

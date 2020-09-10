@@ -9,6 +9,11 @@
 #include <iosfwd>
 #include <initializer_list>
 
+#if MPFR_CXX_HAS_MATH_BUILTINS == 0
+// for std::{fabs,frexp,signbit}
+#include <cmath>
+#endif
+
 namespace mpfr {
 
 template <precision_t> struct mp_float_t;
@@ -98,6 +103,19 @@ inline constexpr auto prec_negate_if(mpfr_prec_t p, bool cond) -> mpfr_prec_t {
 
 inline constexpr auto prec_abs(mpfr_prec_t p) -> mpfr_prec_t { return prec_negate_if(p, p < 0); }
 
+auto count_trailing_zeros(unsigned long long x) -> int {
+#if HEDLEY_HAS_BUILTIN(__builtin_ctzll)
+  int zero_bits = __builtin_ctzll(x);
+#else
+  int zero_bits = 0;
+  while ((x % 2) == 0) {
+    x /= 2;
+    ++zero_bits;
+  }
+#endif
+  return zero_bits;
+}
+
 inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
 
   if (mpfr_custom_get_kind(x) != MPFR_REGULAR_KIND and
@@ -140,14 +158,7 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
   if (last_limb == 0) {
     zero_bits += bits_limb;
   } else {
-#if HEDLEY_HAS_BUILTIN(__builtin_ctzll)
-    zero_bits += __builtin_ctzll(last_limb);
-#else
-    while ((last_limb % 2) == 0) {
-      last_limb /= 2;
-      ++zero_bits;
-    }
-#endif
+    zero_bits += count_trailing_zeros(last_limb);
   }
   return static_cast<mpfr_prec_t>(
              round_up_to_multiple(static_cast<uint64_t>(mpfr_get_prec(x)), bits_limb)) //
@@ -234,6 +245,66 @@ struct mpfr_raii_setter_t /* NOLINT */ {
   void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
+struct impl_access {
+
+  template <precision_t P>
+  static auto mantissa_mut(mp_float_t<P>& x)
+      -> mp_limb_t (&)[prec_to_nlimb(static_cast<std::uint64_t>(P))] {
+    return x.m_mantissa;
+  }
+  template <precision_t P>
+  static auto mantissa_const(mp_float_t<P> const& x) -> mp_limb_t
+      const (&)[prec_to_nlimb(static_cast<std::uint64_t>(P))] {
+    return x.m_mantissa;
+  }
+
+  template <precision_t P> static auto actual_prec_sign_mut(mp_float_t<P>& x) -> mpfr_prec_t& {
+    return x.m_actual_prec_sign;
+  }
+  template <precision_t P>
+  static auto actual_prec_sign_const(mp_float_t<P> const& x) -> mpfr_prec_t {
+    return x.m_actual_prec_sign;
+  }
+
+  template <precision_t P> static auto exp_mut(mp_float_t<P>& x) -> mpfr_exp_t& {
+    return x.m_exponent;
+  }
+  template <precision_t P> static auto exp_const(mp_float_t<P> const& x) -> mpfr_exp_t {
+    return x.m_exponent;
+  }
+
+  template <precision_t P> static auto mpfr_cref(mp_float_t<P> const& x) -> mpfr_cref_t {
+    mpfr_cref_t out{};
+    mpfr_sign_t sign = (x.m_actual_prec_sign < 0) ? -1 : 1;
+
+    mpfr_prec_t actual_prec = prec_abs(x.m_actual_prec_sign);
+
+    if (actual_prec == 0 and x.m_exponent == 0) {
+      mpfr_custom_init_set(&out.m, sign * MPFR_ZERO_KIND, x.m_exponent, 1, x.m_mantissa);
+      return out;
+    }
+    constexpr size_t full_n_limb = prec_to_nlimb(mp_float_t<P>::precision_mpfr);
+    size_t actual_n_limb = prec_to_nlimb(actual_prec);
+    out.m = {
+        actual_prec,
+        sign,
+        x.m_exponent,
+        const_cast<mp_limb_t*> // NOLINT(cppcoreguidelines-pro-type-const-cast)
+        (x.m_mantissa + (full_n_limb - actual_n_limb)),
+    };
+    return out;
+  }
+
+  template <precision_t P> static auto mpfr_setter(mp_float_t<P>& x) -> mpfr_raii_setter_t {
+    return {
+        mp_float_t<P>::precision_mpfr,
+        static_cast<mp_limb_t*>(x.m_mantissa),
+        &x.m_exponent,
+        &x.m_actual_prec_sign,
+    };
+  }
+};
+
 HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2(
     mpfr_exp_t* a_exp,
     mpfr_exp_t* a_prec_sign,
@@ -272,22 +343,244 @@ inline auto get_rnd() -> mpfr_rnd_t {
   }
 }
 
-inline void set_d(mpfr_raii_setter_t& out, double a) {
-  mpfr_set_d(&out.m, a, _::get_rnd());
-  if (mpfr_get_prec(&out.m) >= static_cast<mpfr_prec_t>(sizeof(double) * CHAR_BIT)) {
+template <typename T> struct integral_or_floating_point { static constexpr bool value = false; };
+
+template <typename T> void set_primitive(mpfr_raii_setter_t& out, T a) {
+  integral_or_floating_point<T>::fnptr(&out.m, a, _::get_rnd());
+
+  if (mpfr_get_prec(&out.m) >= static_cast<mpfr_prec_t>(sizeof(T) * CHAR_BIT)) {
     typename remove_pointer<mpfr_ptr>::type p = out.m;
 
     size_t full_n_limb = prec_to_nlimb(mpfr_get_prec(&out.m));
-    size_t actual_n_limb = prec_to_nlimb(sizeof(double) * CHAR_BIT);
+    size_t actual_n_limb = prec_to_nlimb(sizeof(T) * CHAR_BIT);
 
     mpfr_custom_move(
         &p,
         (static_cast<mp_limb_t*>(mpfr_custom_get_significand(&p)) + (full_n_limb - actual_n_limb)));
-    mpfr_get_prec(&p) = sizeof(double) * CHAR_BIT;
+    mpfr_get_prec(&p) = sizeof(T) * CHAR_BIT;
 
     out.m_actual_precision = compute_actual_prec(&p);
   }
 }
+
+template <> struct integral_or_floating_point<signed long long> {
+  static constexpr bool value = true;
+  static constexpr auto* fnptr = mpfr_set_sj;
+
+  static HEDLEY_ALWAYS_INLINE void
+  set(mpfr_exp_t& m_exponent,
+      mpfr_prec_t& m_actual_prec_sign,
+      mpfr_prec_t precision_mpfr,
+      mp_limb_t* m_mantissa,
+      size_t size,
+      signed long long a) {
+
+    if (a == 0) {
+      std::memset(m_mantissa, 0, sizeof(mp_limb_t) * size);
+      return;
+    }
+    bool signbit = a < 0;
+    auto b = static_cast<unsigned long long>(a);
+    if (signbit) {
+      b = -b;
+    }
+    bool pow_of_2 = (b & (b - 1)) == 0;
+    int exponent = count_trailing_zeros(b) + 1;
+
+    if (pow_of_2) {
+      // a is a power of two
+      // a = signbit * 2^(exp-1)
+
+      auto* xp = static_cast<mp_limb_t*>(m_mantissa);
+
+      if (size >= 1) {
+        std::memset(xp, 0, sizeof(mp_limb_t) * (size - 1));
+      }
+      m_exponent = exponent;
+      xp[size - 1] = _::pow2_mantissa_last;
+      m_actual_prec_sign = signbit ? -1 : 1;
+
+    } else {
+      _::mpfr_raii_setter_t g{
+          precision_mpfr,
+          m_mantissa,
+          &m_exponent,
+          &m_actual_prec_sign,
+      };
+      _::set_primitive(g, a);
+    }
+  }
+};
+
+template <> struct integral_or_floating_point<unsigned long long> {
+  static constexpr bool value = true;
+  static constexpr auto* fnptr = mpfr_set_uj;
+
+  static HEDLEY_ALWAYS_INLINE void
+  set(mpfr_exp_t& m_exponent,
+      mpfr_prec_t& m_actual_prec_sign,
+      mpfr_prec_t precision_mpfr,
+      mp_limb_t* m_mantissa,
+      size_t size,
+      unsigned long long a) {
+
+    if (a == 0) {
+      std::memset(m_mantissa, 0, sizeof(mp_limb_t) * size);
+      return;
+    }
+    bool pow_of_2 = (a & (a - 1)) == 0;
+    int exponent = count_trailing_zeros(a) + 1;
+
+    if (pow_of_2) {
+      // a is a power of two
+      // a = 2^(exp-1)
+
+      auto* xp = static_cast<mp_limb_t*>(m_mantissa);
+
+      if (size >= 1) {
+        std::memset(xp, 0, sizeof(mp_limb_t) * (size - 1));
+      }
+      m_exponent = exponent;
+      xp[size - 1] = _::pow2_mantissa_last;
+      m_actual_prec_sign = 1;
+
+    } else {
+      _::mpfr_raii_setter_t g{
+          precision_mpfr,
+          m_mantissa,
+          &m_exponent,
+          &m_actual_prec_sign,
+      };
+      _::set_primitive(g, a);
+    }
+  };
+};
+
+template <>
+struct integral_or_floating_point<signed long> : integral_or_floating_point<signed long long> {};
+template <>
+struct integral_or_floating_point<signed int> : integral_or_floating_point<signed long long> {};
+template <>
+struct integral_or_floating_point<unsigned long> : integral_or_floating_point<unsigned long long> {
+};
+template <>
+struct integral_or_floating_point<unsigned int> : integral_or_floating_point<unsigned long long> {};
+
+template <> struct integral_or_floating_point<float> {
+  static constexpr bool value = true;
+  static constexpr auto* fnptr = mpfr_set_d;
+
+  static HEDLEY_ALWAYS_INLINE void
+  set(mpfr_exp_t& m_exponent,
+      mpfr_prec_t& m_actual_prec_sign,
+      mpfr_prec_t precision_mpfr,
+      mp_limb_t* m_mantissa,
+      size_t size,
+      float a) {
+    int exponent{};
+
+    float normalized = MPFR_CXX_FABSF(MPFR_CXX_FREXPF(a, &exponent));
+    if (normalized == 0.5F) {
+      bool signbit = MPFR_CXX_SIGNBIT(a) != 0;
+
+      // a is a power of two
+      // a = signbit * 2^(exp-1)
+
+      if (size >= 1) {
+        std::memset(m_mantissa, 0, sizeof(mp_limb_t) * (size - 1));
+      }
+      m_exponent = exponent;
+      m_mantissa[size - 1] = _::pow2_mantissa_last;
+      m_actual_prec_sign = signbit ? -1 : 1;
+
+    } else {
+      _::mpfr_raii_setter_t g{
+          precision_mpfr,
+          m_mantissa,
+          &m_exponent,
+          &m_actual_prec_sign,
+      };
+      _::set_primitive(g, static_cast<double>(a));
+    }
+  }
+};
+
+template <> struct integral_or_floating_point<double> {
+  static constexpr bool value = true;
+  static constexpr auto* fnptr = mpfr_set_d;
+
+  static HEDLEY_ALWAYS_INLINE void
+  set(mpfr_exp_t& m_exponent,
+      mpfr_prec_t& m_actual_prec_sign,
+      mpfr_prec_t precision_mpfr,
+      mp_limb_t* m_mantissa,
+      size_t size,
+      double a) {
+    int exponent{};
+
+    double normalized = MPFR_CXX_FABS(MPFR_CXX_FREXP(a, &exponent));
+    if (normalized == 0.5) {
+      bool signbit = MPFR_CXX_SIGNBIT(a) != 0;
+
+      // a is a power of two
+      // a = signbit * 2^(exp-1)
+
+      if (size >= 1) {
+        std::memset(m_mantissa, 0, sizeof(mp_limb_t) * (size - 1));
+      }
+      m_exponent = exponent;
+      m_mantissa[size - 1] = _::pow2_mantissa_last;
+      m_actual_prec_sign = signbit ? -1 : 1;
+
+    } else {
+      _::mpfr_raii_setter_t g{
+          precision_mpfr,
+          m_mantissa,
+          &m_exponent,
+          &m_actual_prec_sign,
+      };
+      _::set_primitive(g, a);
+    }
+  }
+};
+
+template <> struct integral_or_floating_point<long double> {
+  static constexpr bool value = true;
+  static constexpr auto* fnptr = mpfr_set_ld;
+  static HEDLEY_ALWAYS_INLINE void
+  set(mpfr_exp_t& m_exponent,
+      mpfr_prec_t& m_actual_prec_sign,
+      mpfr_prec_t precision_mpfr,
+      mp_limb_t* m_mantissa,
+      size_t size,
+      long double a) {
+    int exponent{};
+
+    long double normalized = MPFR_CXX_FABSL(MPFR_CXX_FREXPL(a, &exponent));
+    if (normalized == 0.5L) {
+      bool signbit = MPFR_CXX_SIGNBIT(a) != 0;
+
+      // a is a power of two
+      // a = signbit * 2^(exp-1)
+
+      if (size >= 1) {
+        std::memset(m_mantissa, 0, sizeof(mp_limb_t) * (size - 1));
+      }
+      m_exponent = exponent;
+      m_mantissa[size - 1] = _::pow2_mantissa_last;
+      m_actual_prec_sign = signbit ? -1 : 1;
+
+    } else {
+      _::mpfr_raii_setter_t g{
+          precision_mpfr,
+          m_mantissa,
+          &m_exponent,
+          &m_actual_prec_sign,
+      };
+      _::set_primitive(g, a);
+    }
+  }
+};
 
 inline void set_add(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
   mpfr_add(&out.m, &a.m, &b.m, _::get_rnd());
@@ -427,66 +720,6 @@ inline void write_to_ostream(
     _::print_n(out, out.fill(), n_padding);
   }
 }
-
-struct impl_access {
-
-  template <precision_t P>
-  static auto mantissa_mut(mp_float_t<P>& x)
-      -> mp_limb_t (&)[prec_to_nlimb(static_cast<std::uint64_t>(P))] {
-    return x.m_mantissa;
-  }
-  template <precision_t P>
-  static auto mantissa_const(mp_float_t<P> const& x) -> mp_limb_t
-      const (&)[prec_to_nlimb(static_cast<std::uint64_t>(P))] {
-    return x.m_mantissa;
-  }
-
-  template <precision_t P> static auto actual_prec_sign_mut(mp_float_t<P>& x) -> mpfr_prec_t& {
-    return x.m_actual_prec_sign;
-  }
-  template <precision_t P>
-  static auto actual_prec_sign_const(mp_float_t<P> const& x) -> mpfr_prec_t {
-    return x.m_actual_prec_sign;
-  }
-
-  template <precision_t P> static auto exp_mut(mp_float_t<P>& x) -> mpfr_exp_t& {
-    return x.m_exponent;
-  }
-  template <precision_t P> static auto exp_const(mp_float_t<P> const& x) -> mpfr_exp_t {
-    return x.m_exponent;
-  }
-
-  template <precision_t P> static auto mpfr_cref(mp_float_t<P> const& x) -> mpfr_cref_t {
-    mpfr_cref_t out{};
-    mpfr_sign_t sign = (x.m_actual_prec_sign < 0) ? -1 : 1;
-
-    mpfr_prec_t actual_prec = prec_abs(x.m_actual_prec_sign);
-
-    if (actual_prec == 0 and x.m_exponent == 0) {
-      mpfr_custom_init_set(&out.m, sign * MPFR_ZERO_KIND, x.m_exponent, 1, x.m_mantissa);
-      return out;
-    }
-    constexpr size_t full_n_limb = prec_to_nlimb(mp_float_t<P>::precision_mpfr);
-    size_t actual_n_limb = prec_to_nlimb(actual_prec);
-    out.m = {
-        actual_prec,
-        sign,
-        x.m_exponent,
-        const_cast<mp_limb_t*> // NOLINT(cppcoreguidelines-pro-type-const-cast)
-        (x.m_mantissa + (full_n_limb - actual_n_limb)),
-    };
-    return out;
-  }
-
-  template <precision_t P> static auto mpfr_setter(mp_float_t<P>& x) -> mpfr_raii_setter_t {
-    return {
-        mp_float_t<P>::precision_mpfr,
-        static_cast<mp_limb_t*>(x.m_mantissa),
-        &x.m_exponent,
-        &x.m_actual_prec_sign,
-    };
-  }
-};
 
 template <typename CharT, typename Traits, precision_t P>
 inline void dump_repr(std::basic_ostream<CharT, Traits>& out, mp_float_t<P> const& x) {

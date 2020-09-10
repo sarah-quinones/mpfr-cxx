@@ -4,11 +4,6 @@
 #include "mpfr/detail/handle_as_mpfr.hpp"
 #include "mpfr/detail/prologue.hpp"
 
-#if MPFR_CXX_HAS_MATH_BUILTINS == 0
-// for std::{fabs,frexp,signbit}
-#include <cmath>
-#endif
-
 namespace mpfr {
 
 /// Stack allocated fixed precision floating point.\n
@@ -25,51 +20,38 @@ template <precision_t Precision> struct mp_float_t {
   mp_float_t() noexcept { std::memset(this, 0, sizeof(*this)); };
 
   /// \n
-  mp_float_t // NOLINT(hicpp-explicit-conversions,cppcoreguidelines-pro-type-member-init)
-             // mantissa is set by assignment
-      (double a) noexcept {
+  template <typename T, _::enable_if_t<_::integral_or_floating_point<T>::value, void*> = nullptr>
+  mp_float_t // NOLINT(hicpp-explicit-conversions)
+      (T a) noexcept
+      : mp_float_t() {
     *this = a;
   }
 
   /// \n
-  inline auto operator=(double a) noexcept -> mp_float_t& {
-    int exponent{};
-
-#if MPFR_CXX_HAS_MATH_BUILTINS == 1
-    double normalized = __builtin_fabs(__builtin_frexp(a, &exponent));
-    if (normalized == 0.5) {
-      bool signbit = __builtin_signbit(a) != 0;
-#else
-    double normalized = std::fabs(std::frexp(a, &exponent));
-    if (normalized == 0.5) {
-      bool signbit = std::signbit(a);
-#endif
-
-      // a is a power of two
-      // a = signbit * 2^(exp-1)
-
-      auto* xp = static_cast<mp_limb_t*>(m_mantissa);
-      constexpr uint64_t size = sizeof(m_mantissa) / sizeof(m_mantissa[0]);
-
-      if (size >= 1) {
-        std::memset(xp, 0, sizeof(mp_limb_t) * (size - 1));
-      }
-      m_exponent = exponent;
-      xp[size - 1] = _::pow2_mantissa_last;
-      m_actual_prec_sign = signbit ? -1 : 1;
-
-      return *this;
-    } else {
-      _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(*this);
-      _::set_d(g, a);
-    }
+  template <typename T, _::enable_if_t<_::integral_or_floating_point<T>::value, void*> = nullptr>
+  inline auto operator=(T a) noexcept -> mp_float_t& {
+    _::integral_or_floating_point<T>::set(
+        m_exponent,
+        m_actual_prec_sign,
+        precision_mpfr,
+        m_mantissa,
+        sizeof(m_mantissa) / sizeof(m_mantissa[0]),
+        a);
     return *this;
   }
 
   /// \n
-  [[MPFR_CXX_NODISCARD]] explicit operator double() const noexcept {
+  [[MPFR_CXX_NODISCARD]] explicit operator long double() const noexcept {
     _::mpfr_cref_t m = _::impl_access::mpfr_cref(*this);
-    return mpfr_get_d(&m.m, _::get_rnd());
+    return mpfr_get_ld(&m.m, _::get_rnd());
+  }
+  [[MPFR_CXX_NODISCARD]] explicit operator intmax_t() const noexcept {
+    _::mpfr_cref_t m = _::impl_access::mpfr_cref(*this);
+    return mpfr_get_sj(&m.m, _::get_rnd());
+  }
+  [[MPFR_CXX_NODISCARD]] explicit operator uintmax_t() const noexcept {
+    _::mpfr_cref_t m = _::impl_access::mpfr_cref(*this);
+    return mpfr_get_uj(&m.m, _::get_rnd());
   }
   /** @name Arithmetic operators
    */

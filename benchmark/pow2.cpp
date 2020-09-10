@@ -34,10 +34,12 @@ auto main() -> int {
   bench.minEpochTime(std::chrono::milliseconds{100UL});
 
   bench_mul_div<scalar_t<100>>(bench, 128.0, "d");
+  bench_mul_div<scalar_t<100>>(bench, 128, "i");
   bench_mul_div<bscalar_t<100>>(bench, 128.0, "d boost");
   bench_mul_div<bscalar_t<100>>(bench, 128, "i boost");
 
   bench_mul_div<scalar_t<1000>>(bench, 128.0, "d");
+  bench_mul_div<scalar_t<1000>>(bench, 128, "i");
   bench_mul_div<bscalar_t<1000>>(bench, 128.0, "d boost");
   bench_mul_div<bscalar_t<1000>>(bench, 128, "i boost");
 }
