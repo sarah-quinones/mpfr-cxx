@@ -205,7 +205,7 @@ auto impl_handle_as_mpfr_t(Fn&& fn, Args&... args) noexcept(No_Except) ->
     typename ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>::type {
   return //
       meta::impl_handle_as_mpfr_t_ambiguity_dispatch<
-          meta::callable_info<Fn>::ambiguous>::template run< //
+          meta::callable_info<typename remove_reference<Fn>::type>::ambiguous>::template run< //
           typename ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>::
               type, //
           No_Except //

@@ -112,21 +112,24 @@ DOCTEST_TEST_CASE("const conversion test") {
   scalar_t const c = 2;
   static constexpr mpfr_prec_t prec = static_cast<mpfr_prec_t>(scalar_t::precision);
 
+  auto callable_with_unambiguous_member_fn = [](mpfr_srcptr ap, mpfr_ptr bp, mpfr_srcptr cp) {
+    DOCTEST_CHECK(
+        mpfr_get_prec(ap) == 1); // a is not const but ap is pointer to const. precision is shrunk
+
+    DOCTEST_CHECK(mpfr_get_prec(bp) == prec); // b is not const and bp is pointer to
+                                              // mut. precision is preserved.
+
+    DOCTEST_CHECK(mpfr_get_prec(cp) == 1); // c is const. precision is shrunk
+  };
+
   // unambiguous call operator
-  handle_as_mpfr_t(
-      [](mpfr_srcptr ap, mpfr_ptr bp, mpfr_srcptr cp) {
-        DOCTEST_CHECK(
-            mpfr_get_prec(ap) ==
-            1); // a is not const but ap is pointer to const. precision is shrunk
+  handle_as_mpfr_t(callable_with_unambiguous_member_fn, a, b, c);
 
-        DOCTEST_CHECK(mpfr_get_prec(bp) == prec); // b is not const and bp is pointer to
-                                                  // mut. precision is preserved.
-
-        DOCTEST_CHECK(mpfr_get_prec(cp) == 1); // c is const. precision is shrunk
-      },
-      a,
-      b,
-      c);
+  auto* fn_ptr = static_cast<void (*)(mpfr_srcptr, mpfr_ptr, mpfr_srcptr)>(
+      callable_with_unambiguous_member_fn);
+  auto& fn_ref = *fn_ptr;
+  handle_as_mpfr_t(fn_ptr, a, b, c);
+  handle_as_mpfr_t(fn_ref, a, b, c);
 
   // ambiguous call operator
   handle_as_mpfr_t(
