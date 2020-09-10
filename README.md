@@ -6,9 +6,8 @@ benefits over boost/multiprecision/mpfr:
   - better `ostream` formatting support.
   - smaller compilation overhead.
  
- disadvantages:
+disadvantages:
   - no support for operations involving floats of different precisions.
-  - not properly tested (yet).
 
 # usage
 run `make_single_header.py` to generate a single header include file.

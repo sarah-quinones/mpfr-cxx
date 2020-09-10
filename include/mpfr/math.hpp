@@ -39,7 +39,7 @@ template <precision_t P>
 auto frexp(mp_float_t<P> const& arg, mpfr_prec_t* exp) noexcept -> mp_float_t<P> {
   mp_float_t<P> out = arg;
   {
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(arg);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_frexp(exp, &g.m, &x.m, _::get_rnd());
   }
@@ -47,13 +47,40 @@ auto frexp(mp_float_t<P> const& arg, mpfr_prec_t* exp) noexcept -> mp_float_t<P>
 }
 
 /// \return `arg` multiplied by two to the power of `exp`
-template <precision_t P>
-auto ldexp(mp_float_t<P> const& arg, mpfr_prec_t exp) noexcept -> mp_float_t<P> {
+template <precision_t P> auto ldexp(mp_float_t<P> const& arg, long exp) noexcept -> mp_float_t<P> {
   mp_float_t<P> out = arg;
   {
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(arg);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_mul_2si(&g.m, &x.m, exp, _::get_rnd());
+  }
+  return out;
+}
+
+/// \return `arg` multiplied by two to the power of `exp`
+template <precision_t P> auto scalbn(mp_float_t<P> const& arg, long exp) noexcept -> mp_float_t<P> {
+  return mpfr::ldexp(arg, exp);
+}
+
+/// \return `arg` multiplied by two to the power of `exp`
+template <precision_t P>
+auto scalbln(mp_float_t<P> const& arg, long exp) noexcept -> mp_float_t<P> {
+  return mpfr::ldexp(arg, exp);
+}
+
+/// \return The unbiased exponent of the argument. \f$\log_2(\lvert\text{arg}\rvert)\f$
+template <precision_t P> auto ilogb(mp_float_t<P> const& arg) noexcept -> mpfr_exp_t {
+  _::mpfr_cref_t a = _::impl_access::mpfr_cref(arg);
+  return a.pow2_exponent();
+}
+
+/// \return The unbiased exponent of the argument. \f$\log_2(\lvert\text{arg}\rvert)\f$
+template <precision_t P> auto logb(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  mpfr_exp_t i = mpfr::ilogb(arg);
+  mp_float_t<P> out;
+  {
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    mpfr_set_si(&g.m, i, _::get_rnd());
   }
   return out;
 }
@@ -67,13 +94,31 @@ auto fmod(mp_float_t<P> const& a, mp_float_t<P> const& b, long* quotient_ptr = n
   mp_float_t<P> out;
   {
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(a);
-    _::mpfr_cref_t&& y = _::impl_access::mpfr_cref(b);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(a);
+    _::mpfr_cref_t y = _::impl_access::mpfr_cref(b);
     if (quotient_ptr == nullptr) {
       mpfr_fmod(&g.m, &x.m, &y.m, _::get_rnd());
     } else {
       mpfr_fmodquo(&g.m, quotient_ptr, &x.m, &y.m, _::get_rnd());
     }
+  }
+  return out;
+}
+
+/// \return The fractional part of the argument. The value of the integral part is stored in
+/// `*iptr`.
+template <precision_t P>
+auto modf(mp_float_t<P> const& arg, mp_float_t<P>* iptr) noexcept -> mp_float_t<P> {
+  if (iptr == nullptr) {
+    mp_float_t<P> i;
+    return mpfr::modf(arg, &i);
+  }
+  mp_float_t<P> out;
+  {
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    _::mpfr_raii_setter_t&& g_i = _::impl_access::mpfr_setter(*iptr);
+    _::mpfr_cref_t a = _::impl_access::mpfr_cref(arg);
+    mpfr_modf(&g_i.m, &g.m, &a.m, _::get_rnd());
   }
   return out;
 }
@@ -89,8 +134,8 @@ auto remainder(
   mp_float_t<P> out;
   {
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(a);
-    _::mpfr_cref_t&& y = _::impl_access::mpfr_cref(b);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(a);
+    _::mpfr_cref_t y = _::impl_access::mpfr_cref(b);
     if (quotient_ptr == nullptr) {
       mpfr_remainder(&g.m, &x.m, &y.m, _::get_rnd());
     } else {
@@ -100,10 +145,41 @@ auto remainder(
   return out;
 }
 
+/// \return The remainder of `a` divided by `b`, when the quotient is rounded to the nearest
+/// integer.
+/// If `quotient_ptr` is not null, the least significant bits of the quotient are stored in
+/// `*quotient_ptr`.
+template <precision_t P>
+auto remquo(mp_float_t<P> const& a, mp_float_t<P> const& b, long* quotient_ptr) noexcept
+    -> mp_float_t<P> {
+  return mpfr::remainder(a, b, quotient_ptr);
+}
+
+/// \return Fused multiply add operation. `a * b + c`
+template <precision_t P>
+auto fma(mp_float_t<P> const& a, mp_float_t<P> const& b, mp_float_t<P> const& c) noexcept
+    -> mp_float_t<P> {
+  mp_float_t<P> out;
+  {
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(a);
+    _::mpfr_cref_t y = _::impl_access::mpfr_cref(b);
+    _::mpfr_cref_t z = _::impl_access::mpfr_cref(c);
+    mpfr_fma(&g.m, &x.m, &y.m, &z.m, _::get_rnd());
+  }
+  return out;
+}
+
 /// \return `true` if the argument is infinite, `false` otherwise.
 template <precision_t P> auto isinf(mp_float_t<P> const& arg) noexcept -> bool {
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
   return mpfr_inf_p(&x_.m) != 0;
+}
+
+/// \return `true` if the argument is normal. (always `true`)
+template <precision_t P> auto isnormal(mp_float_t<P> const& arg) noexcept -> bool {
+  static_cast<void>(arg);
+  return true;
 }
 
 /// \return `true` if the argument is finite, `false` otherwise.
@@ -116,6 +192,67 @@ template <precision_t P> auto isfinite(mp_float_t<P> const& arg) noexcept -> boo
 template <precision_t P> auto isnan(mp_float_t<P> const& arg) noexcept -> bool {
   _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
   return mpfr_nan_p(&x_.m) != 0;
+}
+
+/// Category of a floating point number
+enum struct fp_class_e { nan, inf, zero, normal };
+
+/// \return Category of the argument.
+template <precision_t P> auto fpclassify(mp_float_t<P> const& arg) noexcept -> fp_class_e {
+  mpfr_prec_t ps = _::impl_access::actual_prec_sign_const(arg);
+  return mpfr::isnan(arg)                   //
+             ? fp_class_e::nan              //
+             : mpfr::isinf(arg)             //
+                   ? fp_class_e::inf        //
+                   : (ps == 0 or ps == -1)  //
+                         ? fp_class_e::zero //
+                         : fp_class_e::normal;
+}
+
+/// \return `true` if \f$a > b\f$, `false` otherwise.
+template <precision_t P> auto isgreater(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+  return a > b;
+}
+/// \return `true` if \f$a \geq b\f$, `false` otherwise.
+template <precision_t P>
+auto isgreaterequal(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+  return a >= b;
+}
+/// \return `true` if \f$a < b\f$, `false` otherwise.
+template <precision_t P> auto isless(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+  return a < b;
+}
+/// \return `true` if \f$a \leq b\f$, `false` otherwise.
+template <precision_t P> auto islessequal(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+  return a <= b;
+}
+/// \return `true` if `a` or `b` is NaN, `false` otherwise.
+template <precision_t P> auto isunordered(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+  return mpfr::isnan(a) or mpfr::isnan(b);
+}
+/// \return `true` if \f$a < b\f$ or \f$a > b\f$, `false` otherwise.
+template <precision_t P>
+auto islessgreater(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+  return a != b;
+}
+
+/// \return Smaller of the two arguments.
+template <precision_t P>
+auto fmin(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
+  return (mpfr::isnan(b) or a < b) ? a : b;
+}
+
+/// \return Larger of the two arguments.
+template <precision_t P>
+auto fmax(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
+  return (mpfr::isnan(b) or a > b) ? a : b;
+}
+
+/// \return Larger of the two arguments.
+template <precision_t P>
+auto fdim(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
+  return (mpfr::isnan(a) or mpfr::isnan(b)) ? std::numeric_limits<mp_float_t<P>>::quiet_NaN()
+                                            : mpfr::fmax(a - b, mp_float_t<P>{0});
 }
 
 /// \return The absolute value of the argument.
@@ -177,29 +314,13 @@ auto sinh_cosh(mp_float_t<P> const& arg) noexcept -> sinh_cosh_result_t<P> {
 /// \return Arc tangent of y/x in the correct quadrant depending on the signs of the arguments.
 template <precision_t P>
 auto atan2(mp_float_t<P> const& y, mp_float_t<P> const& x) noexcept -> mp_float_t<P> {
-  mp_float_t<P> out;
-  {
-    _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(x);
-    _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(y);
-    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
-
-    mpfr_atan2(&g.m, &y_.m, &x_.m, _::get_rnd());
-  }
-  return out;
+  return _::apply_binary_op(y, x, mpfr_atan2);
 }
 
 /// \return Square root of the sum of the squares of the arguments.
 template <precision_t P>
 auto hypot(mp_float_t<P> const& x, mp_float_t<P> const& y) noexcept -> mp_float_t<P> {
-  mp_float_t<P> out;
-  {
-    _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(x);
-    _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(y);
-    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
-
-    mpfr_hypot(&g.m, &x_.m, &y_.m, _::get_rnd());
-  }
-  return out;
+  return _::apply_binary_op(x, y, mpfr_hypot);
 }
 
 /// \return The next representable number of `from` in the direction of `to`.
@@ -212,6 +333,12 @@ auto nexttoward(mp_float_t<P> const& from, mp_float_t<P> const& to) noexcept -> 
     mpfr_nexttoward(&g.m, &y_.m);
   }
   return out;
+}
+
+/// \return The next representable number of `from` in the direction of `to`.
+template <precision_t P>
+auto nextafter(mp_float_t<P> const& from, mp_float_t<P> const& to) noexcept -> mp_float_t<P> {
+  return mpfr::nexttoward(from, to);
 }
 
 /// \return The next representable number of `from` in the direction of \f$+\infty\f$.
@@ -370,11 +497,16 @@ template <precision_t P> auto rint(mp_float_t<P> const& arg) noexcept -> mp_floa
   return _::apply_unary_op(arg, mpfr_rint);
 }
 
+/// \return Nearby int using the current rounding mode.
+template <precision_t P> auto nearbyint(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
+  return mpfr::rint(arg);
+}
+
 /// \return Next higher or equal representable integer.
 template <precision_t P> auto ceil(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   mp_float_t<P> out;
   {
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(arg);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_ceil(&g.m, &x.m);
   }
@@ -391,7 +523,7 @@ template <precision_t P> auto pi_c() noexcept -> mp_float_t<P> const& {
 template <precision_t P> auto floor(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   mp_float_t<P> out;
   {
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(arg);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_floor(&g.m, &x.m);
   }
@@ -402,7 +534,7 @@ template <precision_t P> auto floor(mp_float_t<P> const& arg) noexcept -> mp_flo
 template <precision_t P> auto round(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   mp_float_t<P> out;
   {
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(arg);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_round(&g.m, &x.m);
   }
@@ -413,7 +545,7 @@ template <precision_t P> auto round(mp_float_t<P> const& arg) noexcept -> mp_flo
 template <precision_t P> auto trunc(mp_float_t<P> const& arg) noexcept -> mp_float_t<P> {
   mp_float_t<P> out;
   {
-    _::mpfr_cref_t&& x = _::impl_access::mpfr_cref(arg);
+    _::mpfr_cref_t x = _::impl_access::mpfr_cref(arg);
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     mpfr_trunc(&g.m, &x.m);
   }

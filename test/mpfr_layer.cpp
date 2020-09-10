@@ -27,7 +27,7 @@ DOCTEST_TEST_CASE("out example") {
   using namespace mpfr;
   using scalar512_t = mp_float_t<digits2{512}>;
   using scalar1024_t = mp_float_t<digits2{1024}>;
-  scalar512_t x; // uninitialized
+  scalar512_t x;
   scalar1024_t y = scalar1024_t{2.0 + 1.0 / 1024};
   auto err_code = handle_as_mpfr_t(
       [](mpfr_ptr a, mpfr_srcptr b) {
