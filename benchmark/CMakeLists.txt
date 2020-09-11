@@ -12,4 +12,7 @@ target_link_libraries(bench-pow2 PRIVATE nanobench-main)
 add_executable(bench-std-vec std_vector.cpp)
 target_link_libraries(bench-std-vec PRIVATE nanobench-main)
 
+add_executable(bench-operations operations.cpp)
+target_link_libraries(bench-operations PRIVATE nanobench-main)
+
 include_directories(../include)

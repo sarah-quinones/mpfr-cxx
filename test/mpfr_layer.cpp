@@ -48,7 +48,7 @@ using namespace mpfr;
 using scalar_t = mp_float_t<digits10{1000}>;
 
 DOCTEST_TEST_CASE("in") {
-  scalar_t const x = 2;
+  scalar_t const x{2};
   auto res = handle_as_mpfr_t(
       [](mpfr_srcptr a) {
         mpfr_t b;
@@ -72,7 +72,7 @@ DOCTEST_TEST_CASE("in") {
 
 DOCTEST_TEST_CASE("out") {
   scalar_t x;
-  scalar_t y = 7;
+  scalar_t y{7};
   handle_as_mpfr_t([](mpfr_ptr a, mpfr_srcptr b) { mpfr_exp(a, b, MPFR_RNDN); }, x, y);
   DOCTEST_CHECK(x == exp(y));
 }
@@ -107,9 +107,9 @@ DOCTEST_TEST_CASE("well-formedness static test") {
 }
 
 DOCTEST_TEST_CASE("const conversion test") {
-  scalar_t a = 2;
-  scalar_t b = 2;
-  scalar_t const c = 2;
+  scalar_t a{2};
+  scalar_t b{2};
+  scalar_t const c{2};
   static constexpr mpfr_prec_t prec = static_cast<mpfr_prec_t>(scalar_t::precision);
 
   auto callable_with_unambiguous_member_fn = [](mpfr_srcptr ap, mpfr_ptr bp, mpfr_srcptr cp) {

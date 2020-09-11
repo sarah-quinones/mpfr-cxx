@@ -17,9 +17,9 @@ DOCTEST_TEST_CASE("conversion test") {
 }
 
 DOCTEST_TEST_CASE("multiplication/division test") {
-  scalar_t x = 1 - std::numeric_limits<scalar_t>::epsilon();
-  scalar_t y = 0.5;
-  scalar_t z = std::numeric_limits<scalar_t>::quiet_NaN();
+  auto x = scalar_t{1 - std::numeric_limits<scalar_t>::epsilon()};
+  auto y = scalar_t{0.5};
+  auto z = std::numeric_limits<scalar_t>::quiet_NaN();
 
   handle_as_mpfr_t(
       [](mpfr_ptr a, mpfr_ptr b) {
@@ -88,8 +88,8 @@ DOCTEST_TEST_CASE("multiplication/division test") {
 }
 
 DOCTEST_TEST_CASE("math functions") {
-  scalar_t const x = 1.312;
-  scalar_t const y = 21.21922;
+  auto const x = scalar_t{1.312};
+  auto const y = scalar_t{21.21922};
 
   DOCTEST_CHECK(fabs(x) == x);
   DOCTEST_CHECK(fabs(-x) == x);
@@ -117,8 +117,11 @@ DOCTEST_TEST_CASE("math functions") {
   }
 
   DOCTEST_CHECK(pow(x, scalar_t{2}) == x * x);
+  DOCTEST_CHECK(pow(x, 2) == x * x);
   DOCTEST_CHECK(pow(x, scalar_t{3}) == x * x * x);
+  DOCTEST_CHECK(pow(x, 3) == x * x * x);
   DOCTEST_CHECK(pow(x, scalar_t{0.5}) == sqrt(x));
+  DOCTEST_CHECK(pow(x, 0.5) == sqrt(x));
 
   DOCTEST_CHECK(nextabove(x) > x);
   DOCTEST_CHECK(nextbelow(x) < x);

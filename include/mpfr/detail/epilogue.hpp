@@ -18,3 +18,9 @@
 #undef MPFR_CXX_FABSF
 #undef MPFR_CXX_FABSL
 #undef MPFR_CXX_SIGNBIT
+
+#undef callable_is_noexcept
+#undef sfinae_callable_return_type
+#undef sfinae_bool
+#undef sfinae_common_return_type
+#undef sfinae_first_param_type

@@ -20,17 +20,15 @@ template <precision_t Precision> struct mp_float_t {
   mp_float_t() noexcept { std::memset(this, 0, sizeof(*this)); };
 
   /// \n
-  template <typename T, _::enable_if_t<_::integral_or_floating_point<T>::value, void*> = nullptr>
-  mp_float_t // NOLINT(hicpp-explicit-conversions)
-      (T a) noexcept
-      : mp_float_t() {
+  template <typename T, typename = _::enable_if_t<_::is_arithmetic<T>::value>>
+  mp_float_t(T const& a) noexcept : mp_float_t() {
     *this = a;
   }
 
   /// \n
-  template <typename T, _::enable_if_t<_::integral_or_floating_point<T>::value, void*> = nullptr>
+  template <typename T, typename = _::enable_if_t<_::is_arithmetic<T>::value>>
   auto operator=(T const& a) noexcept -> mp_float_t& {
-    _::integral_or_floating_point<T>::set(
+    _::is_arithmetic<T>::set(
         m_exponent,
         m_actual_prec_sign,
         precision_mpfr,
@@ -57,52 +55,12 @@ template <precision_t Precision> struct mp_float_t {
    */
   ///@{
   /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator+(mp_float_t const& a) noexcept -> mp_float_t {
-    return a;
-  }
+  [[MPFR_CXX_NODISCARD]] auto operator+() const noexcept -> mp_float_t { return *this; }
   /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator-(mp_float_t const& a) noexcept -> mp_float_t {
-    mp_float_t out{a};
+  [[MPFR_CXX_NODISCARD]] auto operator-() const noexcept -> mp_float_t {
+    mp_float_t out{*this};
     out.m_actual_prec_sign = _::prec_negate_if(out.m_actual_prec_sign, true);
     return out;
-  }
-
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator+(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> mp_float_t {
-    return arithmetic_op(a, b, _::set_add);
-  }
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator-(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> mp_float_t {
-    return arithmetic_op(a, b, _::set_sub);
-  }
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator*(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> mp_float_t {
-    mp_float_t const* pow2 = nullptr;
-    mp_float_t const* other; // NOLINT(cppcoreguidelines-init-variables)
-    if (_::prec_abs(b.m_actual_prec_sign) == 1) {
-      pow2 = &b;
-      other = &a;
-    } else if (_::prec_abs(a.m_actual_prec_sign) == 1) {
-      pow2 = &a;
-      other = &b;
-    }
-
-    if (pow2 != nullptr) {
-      mp_float_t out = *other;
-      if (_::mul_b_is_pow2(
-              &out.m_exponent,
-              &out.m_actual_prec_sign,
-              pow2->m_exponent,
-              pow2->m_actual_prec_sign,
-              false)) {
-        return out;
-      }
-    }
-
-    return arithmetic_op(a, b, _::set_mul);
   }
 
   /// \n
@@ -123,8 +81,8 @@ template <precision_t Precision> struct mp_float_t {
   }
   ///@}
 
-  /** @name Assignment arithmetic operators
-   */
+  /// @name Assignment arithmetic operators
+  ///
   ///@{
   /// \n
   auto operator+=(mp_float_t const& b) noexcept -> mp_float_t& {
@@ -164,41 +122,6 @@ template <precision_t Precision> struct mp_float_t {
   }
   ///@}
 
-  /** @name Comparison operators
-   */
-  ///@{
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator==(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> bool {
-    return comparison_op(a, b, mpfr_equal_p);
-  }
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator!=(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> bool {
-    return comparison_op(a, b, mpfr_lessgreater_p);
-  }
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator<(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> bool {
-    return comparison_op(a, b, mpfr_less_p);
-  }
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator<=(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> bool {
-    return comparison_op(a, b, mpfr_lessequal_p);
-  }
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator>(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> bool {
-    return comparison_op(a, b, mpfr_greater_p);
-  }
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator>=(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> bool {
-    return comparison_op(a, b, mpfr_greaterequal_p);
-  }
-  ///@}
-
   /// Write the number to an output stream.
   template <typename CharT, typename Traits>
   friend auto operator<<(std::basic_ostream<CharT, Traits>& out, mp_float_t const& a)
@@ -213,33 +136,104 @@ template <precision_t Precision> struct mp_float_t {
 private:
   friend struct _::impl_access;
 
-  [[MPFR_CXX_NODISCARD]] static auto arithmetic_op(
-      mp_float_t const& a,
-      mp_float_t const& b,
-      void (*op)(_::mpfr_raii_setter_t&, _::mpfr_cref_t, _::mpfr_cref_t)) -> mp_float_t {
-    mp_float_t out;
-    {
-      _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
-      _::mpfr_cref_t a_ = _::impl_access::mpfr_cref(a);
-      _::mpfr_cref_t b_ = _::impl_access::mpfr_cref(b);
-      op(g, a_, b_);
-    }
-    return out;
-  }
-
-  [[MPFR_CXX_NODISCARD]] static auto
-  comparison_op(mp_float_t const& a, mp_float_t const& b, int (*comp)(mpfr_srcptr, mpfr_srcptr))
-      -> bool {
-    _::mpfr_cref_t a_ = _::impl_access::mpfr_cref(a);
-    _::mpfr_cref_t b_ = _::impl_access::mpfr_cref(b);
-    return comp(&a_.m, &b_.m) != 0;
-  }
   static constexpr mpfr_prec_t precision_mpfr = static_cast<mpfr_prec_t>(Precision);
 
   mp_limb_t m_mantissa[_::prec_to_nlimb(static_cast<std::uint64_t>(Precision))]{};
   mpfr_exp_t m_exponent{};
   mpfr_exp_t m_actual_prec_sign{};
 }; // namespace mpfr
+
+/// \n
+template <typename U, typename V>
+sfinae_common_return_type operator+(U const& a, V const& b) noexcept {
+  return _::arithmetic_op(a, b, _::set_add);
+}
+/// \n
+template <typename U, typename V>
+sfinae_common_return_type operator-(U const& a, V const& b) noexcept {
+  return _::arithmetic_op(a, b, _::set_sub);
+}
+/// \n
+
+template <typename U, typename V>
+sfinae_common_return_type operator*(U const& a, V const& b) noexcept {
+
+  typename _::into_mp_float_lossless<U>::type const& a_{a};
+  typename _::into_mp_float_lossless<V>::type const& b_{b};
+
+  bool a_or_b_is_pow2 = false;
+  mpfr_exp_t pow2_exp{};
+  mpfr_prec_t pow2_prec_sign{};
+
+  typename _::common_type<U, V>::type out;
+  if (_::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1) {
+    pow2_exp = _::impl_access::exp_const(b_);
+    pow2_prec_sign = _::impl_access::actual_prec_sign_const(b_);
+    out = static_cast<typename _::common_type<U, V>::type>(a);
+    a_or_b_is_pow2 = true;
+  } else if (_::prec_abs(_::impl_access::actual_prec_sign_const(a_)) == 1) {
+    pow2_exp = _::impl_access::exp_const(a_);
+    pow2_prec_sign = _::impl_access::actual_prec_sign_const(a_);
+    out = static_cast<typename _::common_type<U, V>::type>(b);
+    a_or_b_is_pow2 = true;
+  }
+
+  if (a_or_b_is_pow2) {
+    if (_::mul_b_is_pow2(
+            &_::impl_access::exp_mut(out),
+            &_::impl_access::actual_prec_sign_mut(out),
+            pow2_exp,
+            pow2_prec_sign,
+            false)) {
+      return out;
+    }
+  }
+  return _::arithmetic_op(a_, b_, _::set_mul);
+}
+/// \n
+template <typename U, typename V>
+sfinae_common_return_type operator/(U const& a, V const& b) noexcept {
+
+  typename _::into_mp_float_lossless<V>::type const& b_{b};
+
+  if (_::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1) {
+    typename _::common_type<U, V>::type out{a};
+    if (_::mul_b_is_pow2( //
+            &_::impl_access::exp_mut(out),
+            &_::impl_access::actual_prec_sign_mut(out),
+            _::impl_access::exp_const(b_),
+            _::impl_access::actual_prec_sign_const(b_),
+            true)) {
+      return out;
+    }
+  }
+  return _::arithmetic_op(a, b_, _::set_div);
+}
+
+/// \n
+template <typename U, typename V> sfinae_bool operator==(U const& a, V const& b) noexcept {
+  return _::comparison_op(a, b, mpfr_equal_p);
+}
+/// \n
+template <typename U, typename V> sfinae_bool operator!=(U const& a, V const& b) noexcept {
+  return _::comparison_op(a, b, mpfr_lessgreater_p);
+}
+/// \n
+template <typename U, typename V> sfinae_bool operator<(U const& a, V const& b) noexcept {
+  return _::comparison_op(a, b, mpfr_less_p);
+}
+/// \n
+template <typename U, typename V> sfinae_bool operator<=(U const& a, V const& b) noexcept {
+  return _::comparison_op(a, b, mpfr_lessequal_p);
+}
+/// \n
+template <typename U, typename V> sfinae_bool operator>(U const& a, V const& b) noexcept {
+  return _::comparison_op(a, b, mpfr_greater_p);
+}
+/// \n
+template <typename U, typename V> sfinae_bool operator>=(U const& a, V const& b) noexcept {
+  return _::comparison_op(a, b, mpfr_greaterequal_p);
+}
 
 /// Allows handling `mp_float_t<_>` objects through `mpfr_ptr`/`mpfr_srcptr` proxy objects.
 /// If after the callable is executed, one of the arguments has been modified by mpfr, the
@@ -260,14 +254,11 @@ private:
 /// @param[in] fn   A callable that takes arguments of type `mpfr_ptr` for mutable
 /// parameters, or `mpfr_srcptr` for immutable parameters.
 template <typename Fn, typename... Args>
-callable_return_type
-handle_as_mpfr_t(Fn&& fn, Args&&... args) // NOLINT(modernize-use-trailing-return-type)
-    noexcept(callable_is_noexcept) {
+sfinae_callable_return_type
+handle_as_mpfr_t(Fn&& fn, Args&&... args) noexcept(callable_is_noexcept) {
   return _::impl_handle_as_mpfr_t<callable_is_noexcept>(static_cast<Fn&&>(fn), args...);
 }
 
-#undef callable_is_noexcept
-#undef callable_return_type
 } // namespace mpfr
 
 #if defined(min) or defined(max)
@@ -289,7 +280,7 @@ template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Pr
   }
   /// Smallest strictly positive number.
   static auto min() noexcept -> T {
-    T out = 0.5L;
+    T out{0.5F};
     mpfr::_::impl_access::exp_mut(out) = mpfr_get_emin();
     return out;
   }
@@ -344,7 +335,7 @@ template <mpfr::precision_t Precision> struct numeric_limits<mpfr::mp_float_t<Pr
 
 private:
   static auto epsilon_impl() noexcept -> T {
-    T x = 1;
+    T x{1};
     {
       mpfr::_::mpfr_raii_setter_t&& g = mpfr::_::impl_access::mpfr_setter(x);
       mpfr_nextabove(&g.m);
@@ -353,7 +344,7 @@ private:
     return x;
   }
   static auto one_m_eps_impl() noexcept -> T {
-    T x = 1;
+    T x{1};
     {
       mpfr::_::mpfr_raii_setter_t&& g = mpfr::_::impl_access::mpfr_setter(x);
       mpfr_nextbelow(&g.m);

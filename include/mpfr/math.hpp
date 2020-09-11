@@ -24,10 +24,10 @@ template <precision_t P> auto signbit(mp_float_t<P> const& arg) noexcept -> bool
   return _::impl_access::actual_prec_sign_const(arg) < 0;
 }
 
-/// \return The `a` with the sign copied from `b`.
-template <precision_t P>
-auto copysign(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
-  mp_float_t<P> out = a;
+/// \return `a` with the sign copied from `b`.
+template <typename U, typename V>
+sfinae_first_param_type copysign(U const& a, V const& b) noexcept {
+  typename _::common_type<U, V>::type out = a;
   auto& prec_sign = _::impl_access::actual_prec_sign_mut(a);
   prec_sign = _::prec_negate_if(prec_sign, mpfr::signbit(a) != mpfr::signbit(b));
   return out;
@@ -88,10 +88,9 @@ template <precision_t P> auto logb(mp_float_t<P> const& arg) noexcept -> mp_floa
 /// \return The remainder of `a` divided by `b`, when the quotient is rounded toward zero.
 /// If `quotient_ptr` is not null, the least significant bits of the quotient are stored in
 /// `*quotient_ptr`.
-template <precision_t P>
-auto fmod(mp_float_t<P> const& a, mp_float_t<P> const& b, long* quotient_ptr = nullptr) noexcept
-    -> mp_float_t<P> {
-  mp_float_t<P> out;
+template <typename U, typename V>
+sfinae_common_return_type fmod(U const& a, U const& b, long* quotient_ptr = nullptr) noexcept {
+  typename _::common_type<U, V>::type out;
   {
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     _::mpfr_cref_t x = _::impl_access::mpfr_cref(a);
@@ -127,11 +126,9 @@ auto modf(mp_float_t<P> const& arg, mp_float_t<P>* iptr) noexcept -> mp_float_t<
 /// integer.
 /// If `quotient_ptr` is not null, the least significant bits of the quotient are stored in
 /// `*quotient_ptr`.
-template <precision_t P>
-auto remainder(
-    mp_float_t<P> const& a, mp_float_t<P> const& b, long* quotient_ptr = nullptr) noexcept
-    -> mp_float_t<P> {
-  mp_float_t<P> out;
+template <typename U, typename V>
+sfinae_common_return_type remainder(U const& a, V const& b, long* quotient_ptr = nullptr) noexcept {
+  typename _::common_type<U, V>::type out;
   {
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     _::mpfr_cref_t x = _::impl_access::mpfr_cref(a);
@@ -149,9 +146,8 @@ auto remainder(
 /// integer.
 /// If `quotient_ptr` is not null, the least significant bits of the quotient are stored in
 /// `*quotient_ptr`.
-template <precision_t P>
-auto remquo(mp_float_t<P> const& a, mp_float_t<P> const& b, long* quotient_ptr) noexcept
-    -> mp_float_t<P> {
+template <typename U, typename V>
+sfinae_common_return_type remquo(U const& a, U const& b, long* quotient_ptr) noexcept {
   return mpfr::remainder(a, b, quotient_ptr);
 }
 
@@ -210,49 +206,45 @@ template <precision_t P> auto fpclassify(mp_float_t<P> const& arg) noexcept -> f
 }
 
 /// \return `true` if \f$a > b\f$, `false` otherwise.
-template <precision_t P> auto isgreater(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
-  return a > b;
-}
+template <typename U, typename V> sfinae_bool isgreater(U const& a, U const& b) { return a > b; }
 /// \return `true` if \f$a \geq b\f$, `false` otherwise.
-template <precision_t P>
-auto isgreaterequal(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+template <typename U, typename V> sfinae_bool isgreaterequal(U const& a, V const& b) noexcept {
   return a >= b;
 }
 /// \return `true` if \f$a < b\f$, `false` otherwise.
-template <precision_t P> auto isless(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+template <typename U, typename V> sfinae_bool isless(U const& a, V const& b) noexcept {
   return a < b;
 }
 /// \return `true` if \f$a \leq b\f$, `false` otherwise.
-template <precision_t P> auto islessequal(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+template <typename U, typename V> sfinae_bool islessequal(U const& a, V const& b) noexcept {
   return a <= b;
 }
 /// \return `true` if `a` or `b` is NaN, `false` otherwise.
-template <precision_t P> auto isunordered(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+template <typename U, typename V> sfinae_bool isunordered(U const& a, V const& b) noexcept {
   return mpfr::isnan(a) or mpfr::isnan(b);
 }
 /// \return `true` if \f$a < b\f$ or \f$a > b\f$, `false` otherwise.
-template <precision_t P>
-auto islessgreater(mp_float_t<P> const& a, mp_float_t<P> const& b) -> bool {
+template <typename U, typename V> sfinae_bool islessgreater(U const& a, V const& b) noexcept {
   return a != b;
 }
 
-/// \return Smaller of the two arguments.
-template <precision_t P>
-auto fmin(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
+/// \return Smaller of the two arguments. If one of the arguments is NaN, returns the other
+/// argument.
+template <typename U, typename V> sfinae_common_return_type fmin(U const& a, V const& b) noexcept {
   return (mpfr::isnan(b) or a < b) ? a : b;
 }
 
-/// \return Larger of the two arguments.
-template <precision_t P>
-auto fmax(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
+/// \return Larger of the two arguments. If one of the arguments is NaN, returns the other
+/// argument.
+template <typename U, typename V> sfinae_common_return_type fmax(U const& a, V const& b) noexcept {
   return (mpfr::isnan(b) or a > b) ? a : b;
 }
 
-/// \return Larger of the two arguments.
-template <precision_t P>
-auto fdim(mp_float_t<P> const& a, mp_float_t<P> const& b) noexcept -> mp_float_t<P> {
-  return (mpfr::isnan(a) or mpfr::isnan(b)) ? std::numeric_limits<mp_float_t<P>>::quiet_NaN()
-                                            : mpfr::fmax(a - b, mp_float_t<P>{0});
+/// \return Positive difference of the two arguments. If one of the arguments is NaN, returns NaN.
+template <typename U, typename V> sfinae_common_return_type fdim(U const& a, V const& b) noexcept {
+  return (mpfr::isnan(a) or mpfr::isnan(b)) //
+             ? std::numeric_limits<typename _::common_type<U, V>::type>::quiet_NaN()
+             : mpfr::fmax(a - b, 0);
 }
 
 /// \return The absolute value of the argument.
@@ -269,8 +261,8 @@ template <precision_t P> auto abs(mp_float_t<P> const& arg) noexcept -> mp_float
 }
 
 /// \return The base to the power of the exponent.
-template <precision_t P>
-auto pow(mp_float_t<P> const& base, mp_float_t<P> const& exponent) noexcept -> mp_float_t<P> {
+template <typename U, typename V>
+sfinae_common_return_type pow(U const& base, V const& exponent) noexcept {
   return _::apply_binary_op(base, exponent, mpfr_pow);
 }
 
@@ -312,21 +304,19 @@ auto sinh_cosh(mp_float_t<P> const& arg) noexcept -> sinh_cosh_result_t<P> {
 }
 
 /// \return Arc tangent of y/x in the correct quadrant depending on the signs of the arguments.
-template <precision_t P>
-auto atan2(mp_float_t<P> const& y, mp_float_t<P> const& x) noexcept -> mp_float_t<P> {
+template <typename U, typename V> sfinae_common_return_type atan2(U const& y, V const& x) noexcept {
   return _::apply_binary_op(y, x, mpfr_atan2);
 }
 
 /// \return Square root of the sum of the squares of the arguments.
-template <precision_t P>
-auto hypot(mp_float_t<P> const& x, mp_float_t<P> const& y) noexcept -> mp_float_t<P> {
+template <typename U, typename V> sfinae_common_return_type hypot(U const& x, V const& y) noexcept {
   return _::apply_binary_op(x, y, mpfr_hypot);
 }
 
 /// \return The next representable number of `from` in the direction of `to`.
-template <precision_t P>
-auto nexttoward(mp_float_t<P> const& from, mp_float_t<P> const& to) noexcept -> mp_float_t<P> {
-  mp_float_t<P> out = from;
+template <typename U, typename V>
+sfinae_common_return_type nexttoward(U const& from, V const& to) noexcept {
+  typename _::common_type<U, V>::type out = from;
   {
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
     _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(to);
@@ -336,8 +326,8 @@ auto nexttoward(mp_float_t<P> const& from, mp_float_t<P> const& to) noexcept -> 
 }
 
 /// \return The next representable number of `from` in the direction of `to`.
-template <precision_t P>
-auto nextafter(mp_float_t<P> const& from, mp_float_t<P> const& to) noexcept -> mp_float_t<P> {
+template <typename U, typename V>
+sfinae_common_return_type nextafter(U const& from, V const& to) noexcept {
   return mpfr::nexttoward(from, to);
 }
 
@@ -476,8 +466,7 @@ template <precision_t P> auto lgamma(mp_float_t<P> const& arg) noexcept -> mp_fl
 }
 
 /// \return Beta function. \f\[\text{B}(x, y) = \int_0^1 t^{x-1}(1-t)^{y-1} \mathrm{d}t\f\]
-template <precision_t P>
-auto beta(mp_float_t<P> const& x, mp_float_t<P> const& y) noexcept -> mp_float_t<P> {
+template <typename U, typename V> sfinae_common_return_type beta(U const& x, V const& y) noexcept {
   return _::apply_binary_op(x, y, mpfr_beta);
 }
 

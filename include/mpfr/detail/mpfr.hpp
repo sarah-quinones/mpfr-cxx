@@ -328,10 +328,30 @@ inline auto get_rnd() -> mpfr_rnd_t {
   }
 }
 
-template <typename T> struct integral_or_floating_point { static constexpr bool value = false; };
+template <typename T1, typename T2> struct common_type;
+template <precision_t P, typename T1> struct common_type<T1, mp_float_t<P>> {
+  using type = mp_float_t<P>;
+};
+template <precision_t P, typename T2> struct common_type<mp_float_t<P>, T2> {
+  using type = mp_float_t<P>;
+};
+template <precision_t P1, precision_t P2> struct common_type<mp_float_t<P1>, mp_float_t<P2>> {
+  using type = mp_float_t<(P1 > P2) ? P1 : P2>;
+};
+
+template <typename T> struct into_mp_float_lossless {
+  using type = mp_float_t<digits2{sizeof(T) * CHAR_BIT}>;
+};
+template <precision_t P> struct into_mp_float_lossless<mp_float_t<P>> {
+  using type = mp_float_t<P>;
+};
+
+template <typename T1, typename T2> using common_type_t = typename common_type<T1, T2>::type;
+
+template <typename T> struct is_arithmetic { static constexpr bool value = false; };
 
 template <typename T> void set_primitive(mpfr_raii_setter_t& out, T a) {
-  integral_or_floating_point<T>::fnptr(&out.m, a, _::get_rnd());
+  is_arithmetic<T>::fnptr(&out.m, a, _::get_rnd());
 
   if (mpfr_get_prec(&out.m) >= static_cast<mpfr_prec_t>(sizeof(T) * CHAR_BIT)) {
     typename remove_pointer<mpfr_ptr>::type p = out.m;
@@ -348,7 +368,7 @@ template <typename T> void set_primitive(mpfr_raii_setter_t& out, T a) {
   }
 }
 
-template <precision_t P> struct integral_or_floating_point<mp_float_t<P>> {
+template <precision_t P> struct is_arithmetic<mp_float_t<P>> {
   static constexpr bool value = true;
   static constexpr auto* fnptr = mpfr_set_sj;
   static HEDLEY_ALWAYS_INLINE void
@@ -372,7 +392,7 @@ template <precision_t P> struct integral_or_floating_point<mp_float_t<P>> {
   }
 };
 
-template <> struct integral_or_floating_point<signed long long> {
+template <> struct is_arithmetic<signed long long> {
   static constexpr bool value = true;
   static constexpr auto* fnptr = mpfr_set_sj;
 
@@ -420,7 +440,7 @@ template <> struct integral_or_floating_point<signed long long> {
   }
 };
 
-template <> struct integral_or_floating_point<unsigned long long> {
+template <> struct is_arithmetic<unsigned long long> {
   static constexpr bool value = true;
   static constexpr auto* fnptr = mpfr_set_uj;
 
@@ -464,17 +484,12 @@ template <> struct integral_or_floating_point<unsigned long long> {
   };
 };
 
-template <>
-struct integral_or_floating_point<signed long> : integral_or_floating_point<signed long long> {};
-template <>
-struct integral_or_floating_point<signed int> : integral_or_floating_point<signed long long> {};
-template <>
-struct integral_or_floating_point<unsigned long> : integral_or_floating_point<unsigned long long> {
-};
-template <>
-struct integral_or_floating_point<unsigned int> : integral_or_floating_point<unsigned long long> {};
+template <> struct is_arithmetic<signed long> : is_arithmetic<signed long long> {};
+template <> struct is_arithmetic<signed int> : is_arithmetic<signed long long> {};
+template <> struct is_arithmetic<unsigned long> : is_arithmetic<unsigned long long> {};
+template <> struct is_arithmetic<unsigned int> : is_arithmetic<unsigned long long> {};
 
-template <> struct integral_or_floating_point<float> {
+template <> struct is_arithmetic<float> {
   static constexpr bool value = true;
   static constexpr auto* fnptr = mpfr_set_d;
 
@@ -512,7 +527,7 @@ template <> struct integral_or_floating_point<float> {
   }
 };
 
-template <> struct integral_or_floating_point<double> {
+template <> struct is_arithmetic<double> {
   static constexpr bool value = true;
   static constexpr auto* fnptr = mpfr_set_d;
 
@@ -550,7 +565,7 @@ template <> struct integral_or_floating_point<double> {
   }
 };
 
-template <> struct integral_or_floating_point<long double> {
+template <> struct is_arithmetic<long double> {
   static constexpr bool value = true;
   static constexpr auto* fnptr = mpfr_set_ld;
   static HEDLEY_ALWAYS_INLINE void
@@ -585,6 +600,17 @@ template <> struct integral_or_floating_point<long double> {
       _::set_primitive(g, a);
     }
   }
+};
+
+template <typename T> struct is_mp_float { static constexpr bool value = false; };
+template <precision_t P> struct is_mp_float<mp_float_t<P>> { static constexpr bool value = true; };
+template <precision_t P> struct is_mp_float<mp_float_t<P> const> {
+  static constexpr bool value = true;
+};
+
+template <typename T1, typename T2> struct have_common_mp_type {
+  static constexpr bool value = is_arithmetic<T1>::value and is_arithmetic<T2>::value and
+                                (is_mp_float<T1>::value or is_mp_float<T2>::value);
 };
 
 inline void set_add(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
@@ -700,7 +726,7 @@ inline void write_to_ostream(
   }
 
   out.width(0);
-  if (_::has_flag(out, ostr::right)) {
+  if (not _::has_flag(out, ostr::left) and not _::has_flag(out, ostr::internal)) {
     _::print_n(out, out.fill(), n_padding);
   }
 
@@ -753,17 +779,18 @@ auto apply_unary_op(mp_float_t<P> const& x, int (*op)(mpfr_ptr, mpfr_srcptr, mpf
   return out;
 }
 
-template <precision_t P1, precision_t P2>
+template <typename U, typename V>
 auto apply_binary_op(
-    mp_float_t<P1> const& x,
-    mp_float_t<P2> const& y,
-    int (*op)(mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t)) noexcept
-    -> mp_float_t<(P1 >= P2) ? P1 : P2> {
-  mp_float_t<(P1 >= P2) ? P1 : P2> out;
+    U const& x, V const& y, int (*op)(mpfr_ptr, mpfr_srcptr, mpfr_srcptr, mpfr_rnd_t)) noexcept ->
+    typename common_type<U, V>::type {
+  typename common_type<U, V>::type out;
+
+  typename _::into_mp_float_lossless<U>::type const& a{x};
+  typename _::into_mp_float_lossless<V>::type const& b{y};
   {
     _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
-    _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(x);
-    _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(y);
+    _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(a);
+    _::mpfr_cref_t y_ = _::impl_access::mpfr_cref(b);
     op(&g.m, &x_.m, &y_.m, _::get_rnd());
   }
   return out;
@@ -790,6 +817,37 @@ template <> struct into_mpfr<false> {
     };
   }
 };
+
+template <typename U, typename V>
+[[MPFR_CXX_NODISCARD]] auto arithmetic_op(
+    U const& a,
+    V const& b,
+    void (*op)(_::mpfr_raii_setter_t&, _::mpfr_cref_t, _::mpfr_cref_t)) noexcept ->
+    typename _::common_type<U, V>::type {
+
+  typename _::common_type<U, V>::type out;
+  typename _::into_mp_float_lossless<U>::type const& a_{a};
+  typename _::into_mp_float_lossless<V>::type const& b_{b};
+  {
+    _::mpfr_raii_setter_t&& g = _::impl_access::mpfr_setter(out);
+    _::mpfr_cref_t ac = _::impl_access::mpfr_cref(a_);
+    _::mpfr_cref_t bc = _::impl_access::mpfr_cref(b_);
+    op(g, ac, bc);
+  }
+  return out;
+}
+
+template <typename U, typename V>
+[[MPFR_CXX_NODISCARD]] auto
+comparison_op(U const& a, V const& b, int (*comp)(mpfr_srcptr, mpfr_srcptr)) noexcept -> bool {
+  typename _::into_mp_float_lossless<U>::type const& a_{a};
+  typename _::into_mp_float_lossless<V>::type const& b_{b};
+
+  _::mpfr_cref_t ac = _::impl_access::mpfr_cref(a_);
+  _::mpfr_cref_t bc = _::impl_access::mpfr_cref(b_);
+
+  return comp(&ac.m, &bc.m) != 0;
+}
 
 } // namespace _
 

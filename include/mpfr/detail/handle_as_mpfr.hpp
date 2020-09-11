@@ -4,52 +4,10 @@
 #include "mpfr/detail/mpfr.hpp"
 #include "mpfr/detail/prologue.hpp"
 
-#if defined(callable_return_type) or defined(callable_is_noexcept)
-#error "reserved macro is already defined"
-#endif
-
-#define callable_is_noexcept                                                                       \
-  ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::nothrow_value
-
-#if defined(__cpp_concepts)
-
-#define callable_return_type                                                                       \
-  requires(                                                                                        \
-      (::mpfr::_::is_mp_float<typename ::mpfr::_::remove_reference<Args>::type>::value and         \
-       ...) and                                                                                    \
-      ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::value) /**/     \
-      typename ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::type
-
-#elif __cplusplus >= 201703L
-
-#define callable_return_type                                                                       \
-  typename _::enable_if_t<                                                                         \
-      ((::mpfr::_::is_mp_float<typename ::mpfr::_::remove_reference<Args>::type>::value and        \
-        ...) and                                                                                   \
-       ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>::value),        \
-      typename ::mpfr::_::is_invocable<Fn, typename ::mpfr::_::to_mpfr_ptr<Args>::type...>>::type
-
-#else
-
-#define callable_return_type                                                                       \
-  typename _::enable_if_t<                                                                         \
-      (::mpfr::_::all_of({::mpfr::_::is_mp_float<                                                  \
-           typename ::mpfr::_::remove_reference<Args>::type>::value...}) and                       \
-       ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>::value),          \
-      typename ::mpfr::_::is_invocable<Fn, typename mpfr::_::to_mpfr_ptr<Args>::type...>>::type
-
-#endif
-
 namespace mpfr {
 namespace _ {
 
 template <typename T> struct void_impl { using type = void; };
-
-template <typename T> struct is_mp_float { static constexpr bool value = false; };
-template <precision_t P> struct is_mp_float<mp_float_t<P>> { static constexpr bool value = true; };
-template <precision_t P> struct is_mp_float<mp_float_t<P> const> {
-  static constexpr bool value = true;
-};
 
 template <typename T> struct to_mpfr_ptr { using type = void; };
 template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>> { using type = mpfr_ptr; };
@@ -59,7 +17,8 @@ template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const&> { using type =
 
 template <bool Cond, typename T> struct enable_if { using type = T; };
 template <typename T> struct enable_if<false, T> {};
-template <bool Cond, typename T> using enable_if_t = typename mpfr::_::enable_if<Cond, T>::type;
+template <bool Cond, typename T = void>
+using enable_if_t = typename mpfr::_::enable_if<Cond, T>::type;
 
 template <typename Enable, typename T, typename... Args> struct invocable_impl {
   static constexpr bool value = false;
