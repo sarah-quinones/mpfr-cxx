@@ -170,11 +170,6 @@ struct mpfr_cref_t {
 };
 
 struct mpfr_raii_setter_t /* NOLINT */ {
-  /* can only set once
-   * sign and exponent of m must be set
-   * if precision of m is equal to actual_precision, compute actual_precision
-   * otherwise, set actual_precision_ptr's value to actual_precision
-   */
   typename remove_pointer<mpfr_ptr>::type m;
   mpfr_prec_t m_actual_precision;
   mpfr_prec_t m_old_actual_prec_sign;
@@ -214,6 +209,8 @@ struct mpfr_raii_setter_t /* NOLINT */ {
 
   ~mpfr_raii_setter_t() {
 
+    // if precision of m is equal to actual_precision, compute actual_precision
+    // otherwise, set actual_precision_ptr's value to actual_precision
     mpfr_prec_t actual_prec_sign = prec_negate_if(
         mpfr_regular_p(&m)                               //
             ? ((m_actual_precision == mpfr_get_prec(&m)) //
