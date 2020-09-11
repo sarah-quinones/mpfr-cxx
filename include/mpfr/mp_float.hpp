@@ -243,7 +243,9 @@ template <typename U, typename V> sfinae_bool operator>=(U const& a, V const& b)
 /// corresponding `mp_float_t<_>` object is set to the equivalent value.
 ///
 /// If any of the following occurs, the behavior is undefined:
-/// * A parameter that is modified aliases another parameter.
+/// * Any of the arguments are passed to allocating MPFR functions.
+/// * Any two arguments alias, and one of them is accessed after the other has been modified.
+/// * A `mpfr_srcptr` argument is `const_cast` to a `mpfr_ptr`.
 /// * The `mp_float_t<_>` object referenced by a parameter that is modified is accessed
 /// while the callable is being run (except through the `mpfr_ptr` proxy).
 ///

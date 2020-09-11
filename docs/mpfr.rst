@@ -1,5 +1,5 @@
-MPFR layer
-==========
+MPFR interface
+==============
 
 This function provides a (potentially unsafe) way to read and assign the
 :code:`mp_float_t<_>` types through the MPFR C interface.
