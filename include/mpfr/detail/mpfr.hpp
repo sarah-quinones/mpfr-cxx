@@ -351,6 +351,30 @@ template <typename T> void set_primitive(mpfr_raii_setter_t& out, T a) {
   }
 }
 
+template <precision_t P> struct integral_or_floating_point<mp_float_t<P>> {
+  static constexpr bool value = true;
+  static constexpr auto* fnptr = mpfr_set_sj;
+  static HEDLEY_ALWAYS_INLINE void
+  set(mpfr_exp_t& m_exponent,
+      mpfr_prec_t& m_actual_prec_sign,
+      mpfr_prec_t precision_mpfr,
+      mp_limb_t* m_mantissa,
+      size_t size,
+      mp_float_t<P> const& a) {
+
+    static_cast<void>(size);
+
+    mpfr_raii_setter_t g{
+        precision_mpfr,
+        m_mantissa,
+        &m_exponent,
+        &m_actual_prec_sign,
+    };
+    mpfr_cref_t x = impl_access::mpfr_cref(a);
+    mpfr_set(&g.m, &x.m, _::get_rnd());
+  }
+};
+
 template <> struct integral_or_floating_point<signed long long> {
   static constexpr bool value = true;
   static constexpr auto* fnptr = mpfr_set_sj;

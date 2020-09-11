@@ -9,6 +9,13 @@
 using namespace mpfr;
 using scalar_t = mp_float_t<digits10{100}>;
 
+DOCTEST_TEST_CASE("conversion test") {
+  using big_scalar_t = mp_float_t<digits10{200}>;
+  auto x = sqrt(scalar_t{2});
+  auto y = scalar_t{big_scalar_t{x}};
+  DOCTEST_CHECK(x == y);
+}
+
 DOCTEST_TEST_CASE("multiplication/division test") {
   scalar_t x = 1 - std::numeric_limits<scalar_t>::epsilon();
   scalar_t y = 0.5;

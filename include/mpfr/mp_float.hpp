@@ -29,7 +29,7 @@ template <precision_t Precision> struct mp_float_t {
 
   /// \n
   template <typename T, _::enable_if_t<_::integral_or_floating_point<T>::value, void*> = nullptr>
-  auto operator=(T a) noexcept -> mp_float_t& {
+  auto operator=(T const& a) noexcept -> mp_float_t& {
     _::integral_or_floating_point<T>::set(
         m_exponent,
         m_actual_prec_sign,
