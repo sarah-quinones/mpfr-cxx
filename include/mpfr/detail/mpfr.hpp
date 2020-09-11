@@ -639,6 +639,10 @@ inline void set_div(mpfr_raii_setter_t& out, mpfr_cref_t a, mpfr_cref_t b) {
 struct heap_str_t /* NOLINT(cppcoreguidelines-special-member-functions) */ {
   char* p;
   explicit heap_str_t(size_t n) : p{n > 0 ? new char[n] : nullptr} {}
+  void init(size_t n) {
+    MPFR_CXX_ASSERT(p == nullptr);
+    p = n > 0 ? new char[n] : nullptr;
+  }
 
   ~heap_str_t() { delete[] p; }
 };
@@ -665,7 +669,7 @@ void print_n(std::basic_ostream<CharT, Traits>& out, CharT c, size_t n) {
 }
 
 template <typename CharT, typename Traits>
-inline void write_to_ostream(
+void write_to_ostream(
     std::basic_ostream<CharT, Traits>& out,
     mpfr_cref_t x_,
     char* stack_buffer,
