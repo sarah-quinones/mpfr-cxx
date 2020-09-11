@@ -29,7 +29,7 @@ template <precision_t Precision> struct mp_float_t {
 
   /// \n
   template <typename T, _::enable_if_t<_::integral_or_floating_point<T>::value, void*> = nullptr>
-  inline auto operator=(T a) noexcept -> mp_float_t& {
+  auto operator=(T a) noexcept -> mp_float_t& {
     _::integral_or_floating_point<T>::set(
         m_exponent,
         m_actual_prec_sign,
@@ -127,17 +127,17 @@ template <precision_t Precision> struct mp_float_t {
    */
   ///@{
   /// \n
-  inline auto operator+=(mp_float_t const& b) noexcept -> mp_float_t& {
+  auto operator+=(mp_float_t const& b) noexcept -> mp_float_t& {
     *this = *this + b;
     return *this;
   }
   /// \n
-  inline auto operator-=(mp_float_t const& b) noexcept -> mp_float_t& {
+  auto operator-=(mp_float_t const& b) noexcept -> mp_float_t& {
     *this = *this - b;
     return *this;
   }
   /// \n
-  inline auto operator*=(mp_float_t const& b) noexcept -> mp_float_t& {
+  auto operator*=(mp_float_t const& b) noexcept -> mp_float_t& {
     if (_::prec_abs(b.m_actual_prec_sign) == 1) {
       if (_::mul_b_is_pow2(
               &m_exponent, &m_actual_prec_sign, b.m_exponent, b.m_actual_prec_sign, false)) {
@@ -148,7 +148,7 @@ template <precision_t Precision> struct mp_float_t {
     return *this;
   }
   /// \n
-  inline auto operator/=(mp_float_t const& b) noexcept -> mp_float_t& {
+  auto operator/=(mp_float_t const& b) noexcept -> mp_float_t& {
     if (_::prec_abs(b.m_actual_prec_sign) == 1) {
       if (_::mul_b_is_pow2( //
               &m_exponent,

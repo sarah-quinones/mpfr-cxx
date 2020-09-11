@@ -71,7 +71,7 @@ auto scalbln(mp_float_t<P> const& arg, long exp) noexcept -> mp_float_t<P> {
 /// \return The unbiased exponent of the argument. \f$\log_2(\lvert\text{arg}\rvert)\f$
 template <precision_t P> auto ilogb(mp_float_t<P> const& arg) noexcept -> mpfr_exp_t {
   _::mpfr_cref_t a = _::impl_access::mpfr_cref(arg);
-  return a.pow2_exponent();
+  return mpfr_custom_get_exp(&a.m) - 1;
 }
 
 /// \return The unbiased exponent of the argument. \f$\log_2(\lvert\text{arg}\rvert)\f$

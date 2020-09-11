@@ -133,10 +133,10 @@ DOCTEST_TEST_CASE("math functions") {
   DOCTEST_CHECK(floor(x) == 1);
   DOCTEST_CHECK(round(x) == 1);
   DOCTEST_CHECK(trunc(x) == 1);
-  DOCTEST_CHECK(round(1.5) == 2);
-  DOCTEST_CHECK(trunc(1.5) == 1);
-  DOCTEST_CHECK(round(-1.5) == -2);
-  DOCTEST_CHECK(trunc(-1.5) == -1);
+  DOCTEST_CHECK(round(scalar_t{1.5}) == 2);
+  DOCTEST_CHECK(trunc(scalar_t{1.5}) == 1);
+  DOCTEST_CHECK(round(scalar_t{-1.5}) == -2);
+  DOCTEST_CHECK(trunc(scalar_t{-1.5}) == -1);
 
   std::fesetround(FE_UPWARD);
   DOCTEST_CHECK(rint(x) == 2);
@@ -144,8 +144,8 @@ DOCTEST_TEST_CASE("math functions") {
   DOCTEST_CHECK(rint(x) == 1);
   std::fesetround(FE_TOWARDZERO);
   DOCTEST_CHECK(rint(x) == 1);
-  DOCTEST_CHECK(rint(1.5) == 1);
+  DOCTEST_CHECK(rint(scalar_t{1.5}) == 1);
   std::fesetround(FE_TONEAREST);
   DOCTEST_CHECK(rint(x) == 1);
-  DOCTEST_CHECK(rint(1.5) == 2);
+  DOCTEST_CHECK(rint(scalar_t{1.5}) == 2);
 }

@@ -103,7 +103,7 @@ inline constexpr auto prec_negate_if(mpfr_prec_t p, bool cond) -> mpfr_prec_t {
 
 inline constexpr auto prec_abs(mpfr_prec_t p) -> mpfr_prec_t { return prec_negate_if(p, p < 0); }
 
-auto count_trailing_zeros(unsigned long long x) -> int {
+inline auto count_trailing_zeros(unsigned long long x) -> int {
 #if HEDLEY_HAS_BUILTIN(__builtin_ctzll)
   int zero_bits = __builtin_ctzll(x);
 #else
@@ -167,12 +167,6 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
 
 struct mpfr_cref_t {
   typename remove_pointer<mpfr_ptr>::type m;
-
-  void flip_sign_if(bool cond) { cond ? (void)(MPFR_SIGN(&m) *= -1) : (void)0; }
-  [[MPFR_CXX_NODISCARD]] auto pow2_exponent() const -> mpfr_exp_t {
-    return mpfr_custom_get_exp(&m) - 1;
-  }
-  void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
 struct mpfr_raii_setter_t /* NOLINT */ {
@@ -237,12 +231,6 @@ struct mpfr_raii_setter_t /* NOLINT */ {
       *m_exponent_ptr = exp;
     }
   }
-
-  void flip_sign_if(bool cond) { cond ? (void)(MPFR_SIGN(&m) *= -1) : (void)0; }
-  [[MPFR_CXX_NODISCARD]] auto pow2_exponent() const -> mpfr_exp_t {
-    return mpfr_custom_get_exp(&m) - 1;
-  }
-  void set_pow2_exponent(mpfr_exp_t e) { mpfr_custom_get_exp(&m) = e + 1; }
 };
 
 struct impl_access {
@@ -398,8 +386,7 @@ template <> struct integral_or_floating_point<signed long long> {
       }
       m_exponent = exponent;
       xp[size - 1] = _::pow2_mantissa_last;
-      m_actual_prec_sign = signbit ? -1 : 1;
-
+      m_actual_prec_sign = prec_negate_if(1, signbit);
     } else {
       _::mpfr_raii_setter_t g{
           precision_mpfr,
@@ -491,8 +478,7 @@ template <> struct integral_or_floating_point<float> {
       }
       m_exponent = exponent;
       m_mantissa[size - 1] = _::pow2_mantissa_last;
-      m_actual_prec_sign = signbit ? -1 : 1;
-
+      m_actual_prec_sign = prec_negate_if(1, signbit);
     } else {
       _::mpfr_raii_setter_t g{
           precision_mpfr,
@@ -530,8 +516,7 @@ template <> struct integral_or_floating_point<double> {
       }
       m_exponent = exponent;
       m_mantissa[size - 1] = _::pow2_mantissa_last;
-      m_actual_prec_sign = signbit ? -1 : 1;
-
+      m_actual_prec_sign = prec_negate_if(1, signbit);
     } else {
       _::mpfr_raii_setter_t g{
           precision_mpfr,
@@ -568,8 +553,7 @@ template <> struct integral_or_floating_point<long double> {
       }
       m_exponent = exponent;
       m_mantissa[size - 1] = _::pow2_mantissa_last;
-      m_actual_prec_sign = signbit ? -1 : 1;
-
+      m_actual_prec_sign = prec_negate_if(1, signbit);
     } else {
       _::mpfr_raii_setter_t g{
           precision_mpfr,
@@ -723,8 +707,6 @@ inline void write_to_ostream(
 
 template <typename CharT, typename Traits, precision_t P>
 inline void dump_repr(std::basic_ostream<CharT, Traits>& out, mp_float_t<P> const& x) {
-  out << "value\n";
-  out << x << '\n';
   out << "repr\n";
   out << "exp       : " << impl_access::exp_const(x) << '\n';
   out << "prec|sign : " << impl_access::actual_prec_sign_const(x) << '\n';
@@ -733,6 +715,8 @@ inline void dump_repr(std::basic_ostream<CharT, Traits>& out, mp_float_t<P> cons
     out << e << ' ';
   }
   out << '\n';
+  out << "value\n";
+  out << x << '\n';
   out << "end\n";
 }
 

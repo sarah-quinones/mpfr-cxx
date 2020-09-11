@@ -2,6 +2,7 @@
 #define HANDLE_AS_MPFR_HPP_H5QMPTM4
 
 #include "mpfr/detail/mpfr.hpp"
+#include "mpfr/detail/prologue.hpp"
 
 #if defined(callable_return_type) or defined(callable_is_noexcept)
 #error "reserved macro is already defined"
@@ -215,5 +216,7 @@ auto impl_handle_as_mpfr_t(Fn&& fn, Args&... args) noexcept(No_Except) ->
 
 } // namespace _
 } // namespace mpfr
+
+#include "mpfr/detail/epilogue.hpp"
 
 #endif /* end of include guard HANDLE_AS_MPFR_HPP_H5QMPTM4 */
