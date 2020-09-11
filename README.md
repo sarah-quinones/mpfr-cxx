@@ -1,8 +1,10 @@
 lightweight wrapper around [gnu mpfr](https://www.mpfr.org/). allowing usage of stack allocated multiprecision floats.  
-reasons to use this over boost::multiprecision::mpfr:
+[documentation](https://mpfr-cxx.readthedocs.io/en/latest/)
+
+advantages over boost::multiprecision::mpfr
   - scalar types are [trivially copyable](https://en.cppreference.com/w/cpp/named_req/TriviallyCopyable).
   - a possible value representation of positive zero is all zero bits. i.e., for an object `x` of type `mp_float_t<_>`, `std::memset(&x, 0, sizeof(x))`, will set `x` to `+0.0`.
-  - optimized for certain common operations (for instance, multiplication and division by powers of two).
+  - optimized for certain common operations (multiplication and division by powers of two).
   - better `ostream` formatting support.
   - smaller compilation overhead.
  
