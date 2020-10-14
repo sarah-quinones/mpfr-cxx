@@ -55,13 +55,11 @@ template <typename T> struct call_operator_signature;
 
 template <typename T, typename Ret, typename... Args>
 struct call_operator_signature<Ret (T::*)(Args...)> {
-  using return_type = Ret;
   using args = type_list<Args...>;
 };
 
 template <typename T, typename Ret, typename... Args>
 struct call_operator_signature<Ret (T::*)(Args...) const> {
-  using return_type = Ret;
   using args = type_list<Args...>;
 };
 
@@ -70,22 +68,20 @@ template <typename T> using void_t = typename void_impl<T>::type;
 
 template <typename T, typename Enable = void> struct callable_info {
   static constexpr bool ambiguous = true;
+  using args = type_list<>;
 };
 template <typename T> struct callable_info<T, void_t<decltype(&T::operator())>> {
   static constexpr bool ambiguous = false;
-  using return_type = typename call_operator_signature<decltype(&T::operator())>::return_type;
   using args = typename call_operator_signature<decltype(&T::operator())>::args;
 };
 
 template <typename Ret, typename... Args> struct callable_info<Ret (*)(Args...), void> {
   static constexpr bool ambiguous = false;
-  using return_type = Ret;
   using args = type_list<Args...>;
 };
 
 template <typename Ret, typename... Args> struct callable_info<Ret(Args...), void> {
   static constexpr bool ambiguous = false;
-  using return_type = Ret;
   using args = type_list<Args...>;
 };
 
@@ -116,13 +112,8 @@ template <bool Ambiguous> struct impl_handle_as_mpfr_t_ambiguity_dispatch {
 
 template <typename Ptr> struct add_const_if;
 
-template <> struct add_const_if<mpfr_srcptr> {
-  template <typename T> static auto run(T& arg) -> T const& { return arg; }
-};
-
-template <> struct add_const_if<mpfr_ptr> {
-  template <typename T> static auto run(T& arg) -> T& { return arg; }
-};
+template <> struct add_const_if<mpfr_srcptr> { template <typename T> using type = T const; };
+template <> struct add_const_if<mpfr_ptr> { template <typename T> using type = T; };
 
 template <bool All_Mpfr_Ptr> struct all_mpfr_ptr_dispatch {
   // true case
@@ -134,10 +125,11 @@ template <bool All_Mpfr_Ptr> struct all_mpfr_ptr_dispatch {
   }
 
   template <typename Return, bool No_Except, typename Fn, typename... Args, typename... Fn_Params>
-  static auto run2(type_list<Fn_Params...>*, Fn&& fn, Args&... args) noexcept(No_Except) -> Return {
+  static auto run2(type_list<Fn_Params...>* /*unused*/, Fn&& fn, Args&... args) noexcept(No_Except) -> Return {
 
     return impl_handle_as_mpfr_t_ambiguity_dispatch<true>::run<Return, No_Except>(
-        static_cast<Fn&&>(fn), add_const_if<Fn_Params>::run(args)...);
+        static_cast<Fn&&>(fn),
+        static_cast<typename add_const_if<Fn_Params>::template type<Args>&>(args)...);
   }
 };
 

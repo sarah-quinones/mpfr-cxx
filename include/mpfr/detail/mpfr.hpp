@@ -61,11 +61,10 @@ constexpr auto cmp_inverse(uint64_t estimate, uint64_t target, uint64_t (*func)(
 constexpr auto
 inverse_binary_search(uint64_t n, uint64_t low, uint64_t high, uint64_t (*func)(uint64_t))
     -> uint64_t {
-  return cmp_inverse(midpoint(low, high), n, func) == 0
-             ? midpoint(low, high)
-             : cmp_inverse(midpoint(low, high), n, func) == 1
-                   ? inverse_binary_search(n, low, midpoint(low, high) - 1, func)
-                   : inverse_binary_search(n, midpoint(low, high) + 1, high, func);
+  return cmp_inverse(midpoint(low, high), n, func) == 0 ? midpoint(low, high)
+         : cmp_inverse(midpoint(low, high), n, func) == 1
+             ? inverse_binary_search(n, low, midpoint(low, high) - 1, func)
+             : inverse_binary_search(n, midpoint(low, high) + 1, high, func);
 }
 
 /// func must be strictly increasing
@@ -205,7 +204,7 @@ struct mpfr_raii_setter_t /* NOLINT */ {
   mpfr_raii_setter_t(mpfr_raii_setter_t const&) = delete;
   mpfr_raii_setter_t(mpfr_raii_setter_t&&) = delete;
   auto operator=(mpfr_raii_setter_t const&) -> mpfr_raii_setter_t& = delete;
-  auto operator=(mpfr_raii_setter_t &&) -> mpfr_raii_setter_t& = delete;
+  auto operator=(mpfr_raii_setter_t&&) -> mpfr_raii_setter_t& = delete;
 
   ~mpfr_raii_setter_t() {
 
@@ -290,26 +289,27 @@ struct impl_access {
   }
 };
 
-HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2(
+HEDLEY_ALWAYS_INLINE auto mul_b_is_pow2_check(mpfr_exp_t a_exp, mpfr_exp_t b_exponent, bool div)
+    -> bool {
+  typename _::remove_pointer<mpfr_ptr>::type ea_{0, 0, a_exp, nullptr};
+
+  mpfr_prec_t eb{div ? (1 - b_exponent) : b_exponent - 1};
+
+  return mpfr_regular_p(&ea_) and           //
+         (a_exp + eb) < mpfr_get_emax() and //
+         (a_exp + eb) >= mpfr_get_emin();
+}
+
+HEDLEY_ALWAYS_INLINE void mul_b_is_pow2(
     mpfr_exp_t* a_exp,
     mpfr_exp_t* a_prec_sign,
     mpfr_exp_t b_exponent,
     mpfr_exp_t b_actual_prec_sign,
-    bool div) -> bool {
-  typename _::remove_pointer<mpfr_ptr>::type ea_{0, 0, *a_exp, nullptr};
-
+    bool div) {
   mpfr_prec_t eb{div ? (1 - b_exponent) : b_exponent - 1};
 
-  if (HEDLEY_LIKELY(
-          mpfr_regular_p(&ea_) and            //
-          (*a_exp + eb) < mpfr_get_emax() and //
-          (*a_exp + eb) >= mpfr_get_emin())) {
-
-    *a_prec_sign = prec_negate_if(*a_prec_sign, b_actual_prec_sign < 0);
-    *a_exp += eb;
-    return true;
-  }
-  return false;
+  *a_prec_sign = prec_negate_if(*a_prec_sign, b_actual_prec_sign < 0);
+  *a_exp += eb;
 }
 
 inline auto get_rnd() -> mpfr_rnd_t {

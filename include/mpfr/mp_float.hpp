@@ -65,23 +65,6 @@ template <precision_t Precision> struct mp_float_t {
     out.m_actual_prec_sign = _::prec_negate_if(out.m_actual_prec_sign, true);
     return out;
   }
-
-  /// \n
-  [[MPFR_CXX_NODISCARD]] friend auto operator/(mp_float_t const& a, mp_float_t const& b) noexcept
-      -> mp_float_t {
-    if (_::prec_abs(b.m_actual_prec_sign) == 1) {
-      mp_float_t out;
-      out.m_exponent = a.m_exponent;
-      out.m_actual_prec_sign = a.m_actual_prec_sign;
-      if (_::mul_b_is_pow2(
-              &out.m_exponent, &out.m_actual_prec_sign, b.m_exponent, b.m_actual_prec_sign, true)) {
-        std::memcpy(out.m_mantissa, a.m_mantissa, sizeof(out.m_mantissa));
-        return out;
-      }
-    }
-
-    return arithmetic_op(a, b, _::set_div);
-  }
   ///@}
 
   /// @name Assignment arithmetic operators
@@ -99,27 +82,11 @@ template <precision_t Precision> struct mp_float_t {
   }
   /// \n
   auto operator*=(mp_float_t const& b) noexcept -> mp_float_t& {
-    if (_::prec_abs(b.m_actual_prec_sign) == 1) {
-      if (_::mul_b_is_pow2(
-              &m_exponent, &m_actual_prec_sign, b.m_exponent, b.m_actual_prec_sign, false)) {
-        return *this;
-      }
-    }
     *this = *this * b;
     return *this;
   }
   /// \n
   auto operator/=(mp_float_t const& b) noexcept -> mp_float_t& {
-    if (_::prec_abs(b.m_actual_prec_sign) == 1) {
-      if (_::mul_b_is_pow2( //
-              &m_exponent,
-              &m_actual_prec_sign,
-              b.m_exponent,
-              b.m_actual_prec_sign,
-              true)) {
-        return *this;
-      }
-    }
     *this = *this / b;
     return *this;
   }
@@ -164,51 +131,52 @@ sfinae_common_return_type operator*(U const& a, V const& b) noexcept {
   typename _::into_mp_float_lossless<U>::type const& a_{a};
   typename _::into_mp_float_lossless<V>::type const& b_{b};
 
-  bool a_or_b_is_pow2 = false;
-  mpfr_exp_t pow2_exp{};
-  mpfr_prec_t pow2_prec_sign{};
+  bool const b_is_pow2 = _::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1;
+  bool const a_is_pow2 = _::prec_abs(_::impl_access::actual_prec_sign_const(a_)) == 1;
 
-  typename _::common_type<U, V>::type out;
-  if (_::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1) {
-    pow2_exp = _::impl_access::exp_const(b_);
-    pow2_prec_sign = _::impl_access::actual_prec_sign_const(b_);
-    out = static_cast<typename _::common_type<U, V>::type>(a);
-    a_or_b_is_pow2 = true;
-  } else if (_::prec_abs(_::impl_access::actual_prec_sign_const(a_)) == 1) {
-    pow2_exp = _::impl_access::exp_const(a_);
-    pow2_prec_sign = _::impl_access::actual_prec_sign_const(a_);
-    out = static_cast<typename _::common_type<U, V>::type>(b);
-    a_or_b_is_pow2 = true;
+  if (b_is_pow2 and
+      _::mul_b_is_pow2_check(_::impl_access::exp_const(a_), _::impl_access::exp_const(b_), false)) {
+    auto out = static_cast<typename _::common_type<U, V>::type>(a);
+    _::mul_b_is_pow2(
+        &_::impl_access::exp_mut(out),
+        &_::impl_access::actual_prec_sign_mut(out),
+        _::impl_access::exp_const(b_),
+        _::impl_access::actual_prec_sign_const(b_),
+        false);
+    return out;
   }
 
-  if (a_or_b_is_pow2) {
-    if (_::mul_b_is_pow2(
-            &_::impl_access::exp_mut(out),
-            &_::impl_access::actual_prec_sign_mut(out),
-            pow2_exp,
-            pow2_prec_sign,
-            false)) {
-      return out;
-    }
+  if (a_is_pow2 and
+      _::mul_b_is_pow2_check(_::impl_access::exp_const(b_), _::impl_access::exp_const(a_), false)) {
+    auto out = static_cast<typename _::common_type<U, V>::type>(b);
+    _::mul_b_is_pow2(
+        &_::impl_access::exp_mut(out),
+        &_::impl_access::actual_prec_sign_mut(out),
+        _::impl_access::exp_const(a_),
+        _::impl_access::actual_prec_sign_const(a_),
+        false);
+    return out;
   }
+
   return _::arithmetic_op(a_, b_, _::set_mul);
 }
+
 /// \n
 template <typename U, typename V>
 sfinae_common_return_type operator/(U const& a, V const& b) noexcept {
 
+  typename _::into_mp_float_lossless<V>::type const& a_{a};
   typename _::into_mp_float_lossless<V>::type const& b_{b};
 
-  if (_::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1) {
+  if (_::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1 and
+      _::mul_b_is_pow2_check(_::impl_access::exp_const(a_), _::impl_access::exp_const(b_), true)) {
     typename _::common_type<U, V>::type out{a};
-    if (_::mul_b_is_pow2( //
-            &_::impl_access::exp_mut(out),
-            &_::impl_access::actual_prec_sign_mut(out),
-            _::impl_access::exp_const(b_),
-            _::impl_access::actual_prec_sign_const(b_),
-            true)) {
-      return out;
-    }
+    _::mul_b_is_pow2( //
+        &_::impl_access::exp_mut(out),
+        &_::impl_access::actual_prec_sign_mut(out),
+        _::impl_access::exp_const(b_),
+        _::impl_access::actual_prec_sign_const(b_),
+        true);
   }
   return _::arithmetic_op(a, b_, _::set_div);
 }
