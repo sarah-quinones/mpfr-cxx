@@ -2,7 +2,6 @@
 #define MPFR_HPP_FIF35KV4
 
 #include "mpfr/math.hpp"
-#include "mpfr/detail/prologue.hpp"
-#include "mpfr/detail/epilogue.hpp"
+#include "mpfr/external/fmt.hpp"
 
 #endif /* end of include guard MPFR_HPP_FIF35KV4 */

@@ -15,11 +15,6 @@ template <precision_t P> struct to_mpfr_ptr<mp_float_t<P>&> { using type = mpfr_
 template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const> { using type = mpfr_srcptr; };
 template <precision_t P> struct to_mpfr_ptr<mp_float_t<P> const&> { using type = mpfr_srcptr; };
 
-template <bool Cond, typename T> struct enable_if { using type = T; };
-template <typename T> struct enable_if<false, T> {};
-template <bool Cond, typename T = void>
-using enable_if_t = typename mpfr::_::enable_if<Cond, T>::type;
-
 template <typename Enable, typename T, typename... Args> struct invocable_impl {
   static constexpr bool value = false;
   static constexpr bool nothrow_value = false;

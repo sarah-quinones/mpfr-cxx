@@ -21,6 +21,12 @@
 
 #define MPFR_CXX_NODISCARD HEDLEY_DIAGNOSTIC_DISABLE_CPP98_COMPAT_WRAP_(nodiscard)
 
+#if __cplusplus >= 201402L
+#define MPFR_CXX_CONSTEXPR constexpr
+#else
+#define MPFR_CXX_CONSTEXPR inline
+#endif
+
 #if HEDLEY_HAS_BUILTIN(__builtin_fabs) and HEDLEY_HAS_BUILTIN(__builtin_frexp) and                 \
     HEDLEY_HAS_BUILTIN(__builtin_fabsf) and HEDLEY_HAS_BUILTIN(__builtin_frexpf) and               \
     HEDLEY_HAS_BUILTIN(__builtin_fabsl) and HEDLEY_HAS_BUILTIN(__builtin_frexpl) and               \

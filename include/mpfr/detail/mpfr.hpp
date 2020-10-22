@@ -102,6 +102,23 @@ inline constexpr auto prec_negate_if(mpfr_prec_t p, bool cond) -> mpfr_prec_t {
 
 inline constexpr auto prec_abs(mpfr_prec_t p) -> mpfr_prec_t { return prec_negate_if(p, p < 0); }
 
+#if HEDLEY_HAS_BUILTIN(__builtin_clz)
+constexpr auto count_leading_zeros(unsigned char c) -> int {
+  return c == 0 ? CHAR_BIT : __builtin_clz(c) - int((sizeof(unsigned) - 1) * CHAR_BIT);
+}
+#else
+constexpr auto count_leading_zeros2_impl(unsigned char c, unsigned int idx) -> int {
+  return idx == CHAR_BIT //
+             ? 0
+             : ((c < (1U << idx)) //
+                    ? static_cast<int>(CHAR_BIT - idx)
+                    : leading_zeros2_impl(c, idx + 1));
+}
+constexpr auto count_leading_zeros(unsigned char c) -> int {
+  return c == 0 ? CHAR_BIT : leading_zeros2_impl(c, 0);
+}
+#endif
+
 inline auto count_trailing_zeros(unsigned long long x) -> int {
 #if HEDLEY_HAS_BUILTIN(__builtin_ctzll)
   int zero_bits = __builtin_ctzll(x);
@@ -163,6 +180,11 @@ inline auto compute_actual_prec(mpfr_srcptr x) -> mpfr_prec_t {
              round_up_to_multiple(static_cast<uint64_t>(mpfr_get_prec(x)), bits_limb)) //
          - zero_bits;
 }
+
+template <bool Cond, typename T> struct enable_if { using type = T; };
+template <typename T> struct enable_if<false, T> {};
+template <bool Cond, typename T = void>
+using enable_if_t = typename mpfr::_::enable_if<Cond, T>::type;
 
 struct mpfr_cref_t {
   typename remove_pointer<mpfr_ptr>::type m;

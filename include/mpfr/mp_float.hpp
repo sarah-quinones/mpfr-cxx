@@ -2,9 +2,6 @@
 #define MP_FLOAT_HPP_KC35IAEF
 
 #include "mpfr/detail/handle_as_mpfr.hpp"
-#ifdef MPFR_CXX_FMTLIB
-#include "mpfr/external/fmt.hpp"
-#endif
 #include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {
