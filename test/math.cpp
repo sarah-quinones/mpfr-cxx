@@ -30,10 +30,32 @@ DOCTEST_TEST_CASE("multiplication/division test") {
       y);
 
   {
+    scalar_t a = 0.5;
+    DOCTEST_CHECK(a + a == 1);
+    DOCTEST_CHECK(a + 0 == a);
+    DOCTEST_CHECK(0 + a == a);
+    DOCTEST_CHECK(a * a == 0.25);
+    DOCTEST_CHECK(a * 0 == 0);
+    DOCTEST_CHECK(0 * a == 0);
+    DOCTEST_CHECK(a / 0 == std::numeric_limits<scalar_t>::infinity());
+    DOCTEST_CHECK(0 / a == 0);
+    a = 0;
+    DOCTEST_CHECK(a == 0);
+    a = 0U;
+    DOCTEST_CHECK(a == 0);
+    a = 0.0;
+    DOCTEST_CHECK(a == 0);
+    DOCTEST_CHECK(not signbit(a));
+    a = -0.0;
+    DOCTEST_CHECK(a == 0);
+    DOCTEST_CHECK(signbit(a));
+  }
+  {
     DOCTEST_CHECK(x < std::numeric_limits<scalar_t>::infinity());
     DOCTEST_CHECK(isfinite(x));
     DOCTEST_CHECK(x * 2 == std::numeric_limits<scalar_t>::infinity());
     DOCTEST_CHECK(2 * x == std::numeric_limits<scalar_t>::infinity());
+
     DOCTEST_CHECK(isinf(x * 2));
     DOCTEST_CHECK(isinf(2 * x));
     DOCTEST_CHECK(not signbit(x * 2));

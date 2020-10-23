@@ -9,7 +9,7 @@
 
 #include <mpfr.h>
 
-#include "mpfr/detail/hedley.h"
+#include "mpfr/detail/.hedley.h"
 #include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {

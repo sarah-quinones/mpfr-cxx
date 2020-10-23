@@ -1,7 +1,7 @@
 #ifndef MATH_HPP_IED2CNIL
 #define MATH_HPP_IED2CNIL
 
-#include "mpfr/mp_float.hpp"
+#include "mpfr/detail/handle_as_mpfr.hpp"
 #include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {
@@ -164,6 +164,12 @@ auto fma(mp_float_t<P> const& a, mp_float_t<P> const& b, mp_float_t<P> const& c)
     mpfr_fma(&g.m, &x.m, &y.m, &z.m, _::get_rnd());
   }
   return out;
+}
+
+/// \return `true` if the argument is infinite, `false` otherwise.
+template <precision_t P> auto iszero(mp_float_t<P> const& arg) noexcept -> bool {
+  _::mpfr_cref_t x_ = _::impl_access::mpfr_cref(arg);
+  return mpfr_zero_p(&x_.m) != 0;
 }
 
 /// \return `true` if the argument is infinite, `false` otherwise.

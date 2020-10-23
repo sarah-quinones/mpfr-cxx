@@ -1,7 +1,7 @@
 #ifndef MP_FLOAT_HPP_KC35IAEF
 #define MP_FLOAT_HPP_KC35IAEF
 
-#include "mpfr/detail/handle_as_mpfr.hpp"
+#include "mpfr/math.hpp"
 #include "mpfr/detail/prologue.hpp"
 
 namespace mpfr {
@@ -128,6 +128,10 @@ sfinae_common_return_type operator*(U const& a, V const& b) noexcept {
   typename _::into_mp_float_lossless<U>::type const& a_{a};
   typename _::into_mp_float_lossless<V>::type const& b_{b};
 
+  if ((a == 0 and mpfr::isfinite(b_)) or (b == 0 and mpfr::isfinite(a_))) {
+    return 0;
+  }
+
   bool const b_is_pow2 = _::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1;
   bool const a_is_pow2 = _::prec_abs(_::impl_access::actual_prec_sign_const(a_)) == 1;
 
@@ -164,6 +168,10 @@ sfinae_common_return_type operator/(U const& a, V const& b) noexcept {
 
   typename _::into_mp_float_lossless<V>::type const& a_{a};
   typename _::into_mp_float_lossless<V>::type const& b_{b};
+
+  if (mpfr::iszero(a_) and mpfr::isfinite(b_) and not mpfr::iszero(b_)) {
+    return 0;
+  }
 
   if (_::prec_abs(_::impl_access::actual_prec_sign_const(b_)) == 1 and
       _::mul_b_is_pow2_check(_::impl_access::exp_const(a_), _::impl_access::exp_const(b_), true)) {

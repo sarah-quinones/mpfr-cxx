@@ -427,6 +427,8 @@ template <> struct is_arithmetic<signed long long> {
       signed long long a) {
 
     if (a == 0) {
+      m_exponent = 0;
+      m_actual_prec_sign = 0;
       std::memset(m_mantissa, 0, sizeof(mp_limb_t) * size);
       return;
     }
@@ -475,6 +477,8 @@ template <> struct is_arithmetic<unsigned long long> {
       unsigned long long a) {
 
     if (a == 0) {
+      m_exponent = 0;
+      m_actual_prec_sign = 0;
       std::memset(m_mantissa, 0, sizeof(mp_limb_t) * size);
       return;
     }
