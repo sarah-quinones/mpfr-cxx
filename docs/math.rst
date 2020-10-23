@@ -76,6 +76,7 @@ Math functions
 .. doxygenfunction:: mpfr::copysign
 
 .. doxygenfunction:: mpfr::fpclassify
+.. doxygenfunction:: mpfr::iszero
 .. doxygenfunction:: mpfr::isfinite
 .. doxygenfunction:: mpfr::isinf
 .. doxygenfunction:: mpfr::isnan
