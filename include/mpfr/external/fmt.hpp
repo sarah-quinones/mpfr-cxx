@@ -83,7 +83,7 @@ constexpr auto is_digit(char c) -> bool {
 }
 
 template <typename Iter>
-MPFR_CXX_CONSTEXPR auto parse_int(Iter& it, Iter end, error_handler_ref_t eh) {
+MPFR_CXX_CONSTEXPR auto parse_int(Iter& it, Iter end, error_handler_ref_t eh) -> int {
   int val = *it - '0';
   ++it;
   while (it < end) {
@@ -571,7 +571,7 @@ public:
   out_iter_ref_t(Out_Iter* out) // NOLINT(hicpp-explicit-conversions)
       : m_out{out}, m_copy_to{&copy_into_out_impl<Out_Iter>} {}
 
-  auto copy_into_out(char const* begin, char const* end) const { m_copy_to(m_out, begin, end); }
+  void copy_into_out(char const* begin, char const* end) const { m_copy_to(m_out, begin, end); }
 };
 
 inline void format_impl(
