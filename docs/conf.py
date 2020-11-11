@@ -4,7 +4,7 @@ read_the_docs_build = os.environ.get('READTHEDOCS', None) == 'True'
 if read_the_docs_build:
     subprocess.call(
         'mkdir -p build && cd build && '
-        'cmake -DENABLE_DOCS_ONLY=ON ../.. && '
+        'cmake -DMPFR_CXX_BUILD_DOCS=ON ../.. && '
         'make doxygen-docs',
         shell=True)
     xmldir = 'build/docs/xml'

@@ -4,12 +4,24 @@
 #include "mpfr/detail/handle_as_mpfr.hpp"
 #include "mpfr/detail/prologue.hpp"
 
+#if defined(__has_include)
+#if __has_include(<fmt/core.h>)
+#include <fmt/core.h>
+#define MPFR_CXX_FMTLIB_FOUND
+#endif
+#endif
+
+#if !defined(MPFR_CXX_FMTLIB_FOUND)
+#undef MPFR_CXX_FMTLIB_FOUND
+
 namespace fmt {
 inline namespace v7 {
 template <typename OutputIt, typename Char> class basic_format_context;
 template <typename T, typename Char, typename Enable> struct formatter;
 } // namespace v7
 } // namespace fmt
+
+#endif
 
 namespace mpfr {
 namespace _ {
