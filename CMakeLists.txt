@@ -21,21 +21,23 @@ if(MPFR_CXX_BUILD_DOCS)
   return()
 endif()
 
-set(CONAN_REQUIRES
-    # MIT License
-    fmt/7.1.2 backward-cpp/1.5
-    # LGPL v3.0
-    mpfr/4.1.0
-)
-set(CONAN_OPTIONS)
-
-run_conan()
-
 add_library(mpfr-cxx INTERFACE)
-target_link_libraries(mpfr-cxx INTERFACE CONAN_PKG::fmt CONAN_PKG::mpfr)
-target_include_directories(mpfr-cxx INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(
+  mpfr-cxx INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
 
-if(top_level)
+if(top_level AND ENABLE_TESTING)
+  set(CONAN_REQUIRES
+      # MIT License
+      fmt/7.1.2 backward-cpp/1.5
+      # LGPL v3.0
+      mpfr/4.1.0
+  )
+  set(CONAN_OPTIONS)
+  run_conan()
+
+  target_link_libraries(mpfr-cxx INTERFACE CONAN_PKG::fmt CONAN_PKG::mpfr)
+
   add_library(project_options INTERFACE)
   add_library(project_warnings INTERFACE)
   set_project_warnings(project_warnings)
