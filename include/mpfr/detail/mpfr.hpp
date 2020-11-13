@@ -21,7 +21,7 @@ template <precision_t> struct mp_float_t;
 namespace _ {
 
 [[noreturn]] inline void crash_with_message(char const* message) {
-  ::fprintf(stderr, "%s\n", message);
+  std::fputs(message, stderr);
   std::terminate();
 }
 
@@ -251,6 +251,8 @@ struct mpfr_raii_setter_t /* NOLINT */ {
   }
 };
 
+template <precision_t P> inline void dump_repr(mp_float_t<P> const& x);
+
 struct impl_access {
 
   template <precision_t P>
@@ -289,6 +291,18 @@ struct impl_access {
       mpfr_custom_init_set(&out.m, sign * MPFR_ZERO_KIND, x.m_exponent, 1, x.m_mantissa);
       return out;
     }
+
+    if (actual_prec != 0) {
+      bool all_zeros = true;
+      for (auto limb : x.m_mantissa) {
+        all_zeros = all_zeros and (limb == 0);
+      }
+      if (all_zeros) {
+        _::dump_repr(x);
+        _::crash_with_message("invalid representation");
+      }
+    }
+
     constexpr size_t full_n_limb = prec_to_nlimb(mp_float_t<P>::precision_mpfr);
     size_t actual_n_limb = prec_to_nlimb(actual_prec);
     out.m = {
@@ -666,7 +680,9 @@ struct heap_str_t /* NOLINT(cppcoreguidelines-special-member-functions) */ {
   char* p;
   explicit heap_str_t(size_t n) : p{n > 0 ? new char[n] : nullptr} {}
   void init(size_t n) {
-    MPFR_CXX_ASSERT(p == nullptr);
+    if (p == nullptr) {
+      _::crash_with_message("can only be used on uninitialized pointer");
+    }
     p = n > 0 ? new char[n] : nullptr;
   }
 
@@ -785,19 +801,21 @@ void write_to_ostream(
   }
 }
 
-template <typename CharT, typename Traits, precision_t P>
-inline void dump_repr(std::basic_ostream<CharT, Traits>& out, mp_float_t<P> const& x) {
-  out << "repr\n";
-  out << "exp       : " << impl_access::exp_const(x) << '\n';
-  out << "prec|sign : " << impl_access::actual_prec_sign_const(x) << '\n';
-  out << "mantissa  : ";
+template <precision_t P> inline void dump_repr(mp_float_t<P> const& x) {
+  using lld = long long int;
+  using llu = long long unsigned;
+  std::fprintf(
+      stderr,
+      "repr\n"
+      "exp       : %lld\n"
+      "prec|sign : %lld\n"
+      "mantissa  : ",
+      lld(impl_access::exp_const(x)),
+      lld(impl_access::actual_prec_sign_const(x)));
   for (auto e : impl_access::mantissa_const(x)) {
-    out << e << ' ';
+    std::fprintf(stderr, "%llu ", llu(e));
   }
-  out << '\n';
-  out << "value\n";
-  out << x << '\n';
-  out << "end\n";
+  std::putc('\n', stderr);
 }
 
 template <precision_t P>
