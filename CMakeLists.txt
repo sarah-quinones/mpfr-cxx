@@ -33,7 +33,7 @@ run_conan()
 
 add_library(mpfr-cxx INTERFACE)
 target_link_libraries(mpfr-cxx INTERFACE CONAN_PKG::fmt CONAN_PKG::mpfr)
-target_include_directories(mpfr-cxx INTERFACE include)
+target_include_directories(mpfr-cxx INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if(top_level)
   add_library(project_options INTERFACE)

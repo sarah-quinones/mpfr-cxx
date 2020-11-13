@@ -10,7 +10,8 @@ advantages over boost::multiprecision::mpfr
   - [fmtlib](https://github.com/fmtlib/fmt) support (requires v7). the format specification is interpreted as [standard format specification](https://en.cppreference.com/w/cpp/utility/format/formatter#Standard_format_specification), with the addition of a binary type specifier `b`.
  
 # usage
-put `./include/mpfr` in one of the compiler's include directories, or run `make_single_header.py` to generate a single header include file.
+header only.
+add `./include/mpfr` to one of the compiler's include directories.
 
 ```cpp
 #include "mpfr/mpfr.hpp"
